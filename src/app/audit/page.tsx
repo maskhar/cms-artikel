@@ -1,0 +1,16 @@
+"use client";
+
+import { AppSidebar } from "@/components/app-sidebar";
+import { History } from "lucide-react";
+import { useEffect, useState } from "react";
+
+type Site = { id: string; name: string };
+type AuditLog = { id: string; actor_id: string | null; action: string; entity_type: string; entity_id: string | null; metadata: { changed_fields?: string[] }; created_at: string; sites: { name: string } | { name: string }[] | null };
+
+export default function AuditPage() {
+  const [sites, setSites] = useState<Site[]>([]); const [logs, setLogs] = useState<AuditLog[]>([]); const [siteId, setSiteId] = useState(""); const [message, setMessage] = useState("");
+  async function loadLogs(nextSiteId = siteId) { const query = nextSiteId ? `?siteId=${nextSiteId}` : ""; const response = await fetch(`/api/cms/audit-logs${query}`); const body = await response.json().catch(() => null); if (response.ok) setLogs(body?.data ?? []); else setMessage(body?.error ?? "Audit log gagal dimuat."); }
+  useEffect(() => { void fetch("/api/cms/sites").then((response) => response.json()).then((body) => setSites(body.data ?? [])); void fetch("/api/cms/audit-logs").then(async (response) => { const body = await response.json().catch(() => null); if (response.ok) setLogs(body?.data ?? []); else setMessage(body?.error ?? "Audit log gagal dimuat."); }); }, []);
+  function filter(nextSiteId: string) { setSiteId(nextSiteId); void loadLogs(nextSiteId); }
+  return <main className="min-h-screen bg-[#f8fafc] p-5 md:p-8"><div className="mx-auto grid max-w-7xl gap-6 lg:grid-cols-[240px_1fr]"><AppSidebar/><section className="min-w-0"><p className="text-sm font-medium text-blue-600">Keamanan</p><h1 className="mt-1 text-3xl font-bold">Audit log</h1><p className="mt-1 text-sm text-slate-500">Riwayat perubahan data berdasarkan akses RLS.</p><div className="mt-6 rounded-2xl border border-slate-200 bg-white shadow-sm"><div className="border-b border-slate-100 p-5"><select value={siteId} onChange={(event) => filter(event.target.value)} className="w-full max-w-sm rounded-xl border border-slate-200 px-3 py-3 text-sm"><option value="">Semua website</option>{sites.map((site) => <option key={site.id} value={site.id}>{site.name}</option>)}</select></div><div className="divide-y divide-slate-100">{logs.map((log) => { const site = Array.isArray(log.sites) ? log.sites[0] : log.sites; return <article key={log.id} className="flex gap-3 p-5"><span className="h-fit rounded-xl bg-blue-50 p-2 text-blue-600"><History size={17}/></span><div className="min-w-0"><p className="text-sm font-semibold">{log.action}</p><p className="mt-1 text-xs text-slate-500">{site?.name ?? "Global"} · {log.entity_type} · {log.entity_id ?? "-"}</p><p className="mt-1 text-xs text-slate-500">Actor: {log.actor_id ?? "system"} · {new Date(log.created_at).toLocaleString("id-ID")}</p>{log.metadata?.changed_fields?.length ? <p className="mt-2 text-xs text-slate-400">Field: {log.metadata.changed_fields.join(", ")}</p> : null}</div></article>; })}{!logs.length && <p className="p-10 text-center text-sm text-slate-500">Belum ada audit log.</p>}</div></div>{message && <p className="mt-5 rounded-xl bg-red-50 p-3 text-sm text-red-700">{message}</p>}</section></div></main>;
+}
