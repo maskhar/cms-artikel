@@ -1,0 +1,105 @@
+=============================================================================
+HANDOFF — Sesi 10 September 2026, 16:40 WIB
+=============================================================================
+
+## STATUS PRODUCTION
+
+✅ **CMS Live:** https://cms.carubra.com
+✅ **Container:** cms-artikel (healthy, port 3002)
+✅ **Database:** artikel schema + migration 202609100012 applied
+✅ **Tests:** 32/32 passed
+✅ **Build:** production build successful
+
+## ERROR PRODUCTION DISELESAIKAN
+
+1. **GET /api/cms/articles/{id}/addons 400** → FIXED
+   - Migration gallery_addons deployed
+   - Tabel article_addons, galleries, gallery_items, media_assets tersedia
+   - PostgREST schema reloaded
+
+2. **DELETE /api/cms/sites/{id} 400** → IMPROVED
+   - Pre-check dependensi sebelum delete
+   - Response 409 dengan breakdown artikel/kategori/tag
+   - Pesan tindakan eksplisit untuk user
+   - File: src/app/api/cms/sites/[siteId]/route.ts:19
+
+3. **POST /api/cms/articles/{id}/workflow 400** → EXPECTED
+   - Bukan bug, validasi workflow benar
+   - Status in_review butuh action: approve atau request_revision
+
+## RANCANGAN API AUTOMATION (APPROVED)
+
+**Endpoint:** POST /functions/v1/artikel-cms
+**Auth:** x-artikel-key (service_role hanya runtime function)
+**Action awal:** article.upsert dengan external_id idempotent
+
+**Keputusan:**
+- ✅ CMS admin /api/cms/* tetap Next.js + Auth session
+- ✅ Public Read API /api/v1/* tetap untuk website tenant
+- ❌ article.delete dibatalkan dari automation
+- ⏸️ article.publish/archive/get ditunda sampai UAT upsert
+
+## DOKUMENTASI LENGKAP
+
+**Panduan utama:**
+- docs/SUMMARY-API-REWORK.md (ringkasan perombakan)
+- docs/UNIFIED-CMS-API-DESIGN.md (kontrak Edge Function)
+- docs/API-DECISIONS.md (tabel keputusan)
+
+**Updated:**
+- docs/PRD.md, docs/SDD.md, docs/TODO.md
+- docs/API-INTEGRATION.md, docs/API-DEPLOYMENT.md, docs/DEPLOYMENT-TENANT-API.md
+
+**Session log:**
+- SESSION-SUMMARY-2026-09-10.txt
+
+## NEXT STEPS (CHECKLIST)
+
+**Database:**
+- [ ] Migration: ALTER TABLE artikel.articles ADD COLUMN external_id TEXT
+- [ ] Index: UNIQUE (site_id, external_id) WHERE external_id IS NOT NULL
+- [ ] Function: artikel.upsert_automation_article (atomic mutation)
+
+**Edge Function:**
+- [ ] File: supabase/functions/artikel-cms/index.ts
+- [ ] Validate x-artikel-key + rate limit
+- [ ] Action router: article.upsert
+- [ ] Response envelope: { success, request_id, data/error }
+
+**Testing:**
+- [ ] Unit test idempotency external_id
+- [ ] Integration test tenant isolation
+- [ ] E2E test retry sama request_id
+- [ ] Verify audit redacts secret + base64
+
+**UAT:**
+- [ ] Deploy staging → test → production
+- [ ] Smoke test automation dari satu tenant
+- [ ] Validasi error 401, 403, 409, 422, 429
+
+## COMMITS
+
+\\\
+c0de33f fix: improve DELETE /api/cms/sites error handling
+3ceba55 docs: rancangan ulang API automation tunggal
+de050ab feat: modern responsive UI + deployment docs
+\\\
+
+## CATATAN PENTING
+
+1. **Lint:** 3 error pre-existing di login/session monitor (bukan dari sesi ini)
+2. **Migration server:** 202609100012 sudah applied, tabel add-ons live
+3. **Container:** Rebuild verified, restart successful, health check passed
+4. **Tenant test:** de22cef1-0588-480a-8c50-275ac386c784 (1 artikel, 1 kategori)
+
+## KONTAK DEPLOYMENT
+
+- SSH: maskhar@20.20.20.173
+- CMS: ~/apps/cms-artikel
+- Supabase: ~/docker/supabase/supabase-1.26.05/docker
+- Domain: cms.carubra.com → 127.0.0.1:3002
+
+=============================================================================
+Semua error production fixed. Rancangan automation API approved dan 
+documented. Ready untuk implementasi Edge Function fase berikutnya.
+=============================================================================
