@@ -1,0 +1,217 @@
+=============================================================================
+RINGKASAN SESI — 10 September 2026
+=============================================================================
+
+## 1. ERROR DISELESAIKAN
+
+### A. Error 400 /api/cms/articles/{id}/addons (RESOLVED ✅)
+**Penyebab:** Tabel artikel.article_addons belum ada di server production
+**Solusi:** 
+- Deploy migration 202609100012_gallery_addons.sql ke server
+- Reload PostgREST schema cache
+- Verifikasi: tabel article_addons, galleries, gallery_items, media_assets tersedia
+
+**Lokasi:** I:\website-devops\cms-artikel\src\app\api\cms\articles\[articleId]\addons\route.ts:6
+**Status Server:** Container healthy, endpoint verified 401 (auth expected)
+
+### B. Error 400 /api/cms/articles/{id}/workflow (RESOLVED ✅)
+**Penyebab:** Status workflow artikel in_review membutuhkan action approve/request_revision
+**Solusi:** Bukan bug - validasi workflow bekerja benar
+**Enum workflow:** draft, in_review, revision_requested, approved, published, archived
+**Transisi valid:** Sesuai artikel.isAllowedWorkflowTransition
+
+### C. Error 400 DELETE /api/cms/sites/{id} (IMPROVED ✅)
+**Penyebab:** Foreign key RESTRICT tanpa pesan dependensi jelas
+**Solusi:**
+- Pre-check count artikel, kategori, tag sebelum delete
+- Response 409 SITE_NOT_EMPTY dengan breakdown jumlah data
+- Pesan tindakan eksplisit: nonaktifkan atau hapus data terkait dulu
+
+**File:** src/app/api/cms/sites/[siteId]/route.ts:19
+**Deploy:** Rebuild container cms-artikel, restart, verified healthy
+
+---
+
+## 2. RANCANGAN API AUTOMATION TUNGGAL (COMPLETED ✅)
+
+### Dokumen Baru
+- docs/UNIFIED-CMS-API-DESIGN.md (kontrak Edge Function)
+- docs/API-DECISIONS.md (keputusan arsitektur)
+- docs/SUMMARY-API-REWORK.md (ringkasan lengkap)
+
+### Dokumen Diperbarui
+- docs/PRD.md (requirement automation API)
+- docs/SDD.md (arsitektur Edge Function + PostgreSQL function)
+- docs/TODO.md (checklist implementasi fase 3)
+- docs/API-INTEGRATION.md (penanda scope Public Read API)
+- docs/API-DEPLOYMENT.md (penanda scope deployment existing)
+- docs/DEPLOYMENT-TENANT-API.md (penanda tenant read-only)
+
+### Keputusan Arsitektur
+
+**✅ DIPERTAHANKAN:**
+- CMS Admin UI /api/cms/* dengan Next.js + Supabase Auth session
+- Public Read API /api/v1/articles* dengan x-artikel-key
+- Rate limit, audit log, RLS, tenant isolation existing
+- Docker deployment ~/apps/cms-artikel port 3002
+
+**🆕 DITAMBAHKAN:**
+- Endpoint: POST /functions/v1/artikel-cms
+- Field: artikel.articles.external_id (nullable, unique per tenant)
+- Action awal: article.upsert (idempotent)
+- PostgreSQL function: artikel.upsert_automation_article
+- Audit redaction untuk secret dan base64 media
+
+**❌ DIBATALKAN:**
+- Gagasan API tunggal menggantikan seluruh CMS
+- article.delete melalui automation (permanent delete hanya admin)
+- Distribusi SUPABASE_SERVICE_ROLE_KEY ke automation caller
+- Bearer token service_role seperti blog-auto-post
+
+**⏸️ DITUNDA:**
+- article.publish, article.archive, article.get (tunggu UAT article.upsert)
+- Endpoint public kategori (evaluasi per tenant)
+
+### Kontrak Request
+
+\\\json
+{
+  "action": "article.upsert",
+  "request_id": "optional-idempotency-key",
+  "data": {
+    "external_id": "workflow-run-123",
+    "title": "Judul artikel",
+    "content": "<p>Konten</p>",
+    "slug": "judul-artikel",
+    "excerpt": "Ringkasan",
+    "category_slug": "artikel",
+    "status": "draft"
+  }
+}
+\\\
+
+### Kontrak Response
+
+\\\json
+{
+  "success": true,
+  "request_id": "...",
+  "data": {
+    "id": "uuid",
+    "external_id": "workflow-run-123",
+    "slug": "judul-artikel",
+    "status": "draft",
+    "created": true
+  }
+}
+\\\
+
+---
+
+## 3. DEPLOYMENT PRODUCTION
+
+### Container CMS
+- SSH: maskhar@20.20.20.173
+- Path: ~/apps/cms-artikel
+- Container: cms-artikel (port 3002 → 3000)
+- Domain: https://cms.carubra.com
+- Status: healthy, verified
+
+### Database Migration Applied
+- Server: ~/docker/supabase/supabase-1.26.05/docker
+- Migration: 202609100012_gallery_addons.sql
+- Tables: article_addons, galleries, gallery_items, media_assets
+- PostgREST: schema reloaded via notify pgrst
+
+### File Changes Deployed
+- src/app/api/cms/sites/[siteId]/route.ts (DELETE improved)
+- Container rebuilt from latest source
+- Health check: passed
+
+---
+
+## 4. VALIDASI
+
+### Tests
+- pnpm test: 32/32 passed ✅
+- pnpm build: production build successful ✅
+- pnpm lint: 3 errors pre-existing (login/session monitor) ⚠️
+
+### Database Verification
+- Tenant de22cef1-0588-480a-8c50-275ac386c784: 1 artikel, 1 kategori
+- Foreign keys: 19 constraints verified
+- RLS policies: 6 artikel policies active
+- Workflow enum: 6 values complete
+
+---
+
+## 5. CHECKLIST IMPLEMENTASI BERIKUTNYA
+
+### Database
+- [ ] Migration ALTER TABLE artikel.articles ADD COLUMN external_id TEXT
+- [ ] Index UNIQUE (site_id, external_id) WHERE external_id IS NOT NULL
+- [ ] Function artikel.upsert_automation_article with atomic mutation
+
+### Edge Function
+- [ ] File supabase/functions/artikel-cms/index.ts
+- [ ] Validate x-artikel-key using artikel.api_keys
+- [ ] Rate limit using artikel.consume_api_key_rate_limit
+- [ ] Action router for article.upsert
+- [ ] Response envelope { success, request_id, data/error }
+
+### Testing
+- [ ] Unit test external_id idempotency
+- [ ] Integration test tenant isolation
+- [ ] E2E test retry with same request_id
+- [ ] Verify audit log redacts secret and base64
+
+### UAT
+- [ ] Deploy Edge Function to staging
+- [ ] Create automation article from one test tenant
+- [ ] Retry same request verify no duplicate
+- [ ] Validate 401, 403, 409, 422, 429 errors
+- [ ] Smoke test production after clean UAT
+
+---
+
+## 6. COMMIT HISTORY
+
+\\\
+3ceba55 docs: rancangan ulang API automation tunggal
+de050ab feat: modern responsive UI + deployment docs
+35bf62a feat: add multi-tenant CMS platform
+\\\
+
+---
+
+## 7. REFERENSI FILE PENTING
+
+### Dokumentasi Keputusan
+- docs/SUMMARY-API-REWORK.md (panduan utama)
+- docs/UNIFIED-CMS-API-DESIGN.md (kontrak API)
+- docs/API-DECISIONS.md (tabel keputusan)
+
+### Kode Production
+- src/app/api/cms/sites/[siteId]/route.ts (DELETE improved)
+- supabase/migrations/202609100012_gallery_addons.sql (applied)
+
+### Dokumen Existing Tetap Berlaku
+- docs/API-INTEGRATION.md (Public Read API)
+- docs/API-DEPLOYMENT.md (deployment CMS)
+- docs/DEPLOYMENT-TENANT-API.md (integrasi tenant)
+
+---
+
+## 8. METRIK
+
+- Dokumen dibuat/diperbarui: 10 files, +763 lines
+- Migration applied: 1 (gallery_addons)
+- Container rebuilt: 1 (cms-artikel)
+- Production errors fixed: 2 (addons 400, delete 400)
+- Production errors clarified: 1 (workflow 400 = validasi benar)
+- Tests passed: 32/32
+- Token usage sesi: ~83k/200k
+
+=============================================================================
+SESI SELESAI — 2026-09-10T16:39:42Z
+=============================================================================
