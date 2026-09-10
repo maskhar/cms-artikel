@@ -8,3 +8,7 @@ body { margin:0; background:var(--canvas); color:var(--ink); font-family:Arial, 
 .tiptap ol { margin:.65rem 0; list-style:decimal; padding-left:1.5rem; }
 .tiptap blockquote { margin:.75rem 0; border-left:3px solid #cbd5e1; padding-left:1rem; color:#475569; }
 .tiptap a { color:#2563eb; text-decoration:underline; }
+.tiptap [data-placeholder]:first-child::before { color:#94a3b8; content:attr(data-placeholder); float:left; height:0; pointer-events:none; }
+.tiptap .editor-image { display:block; max-width:100%; height:auto; margin:1.5rem auto; border-radius:1rem; box-shadow:0 12px 28px rgba(15,23,42,.12); }
+.tiptap .ProseMirror-selectednode { outline:3px solid #8b5cf6; outline-offset:3px; }
+.tiptap .tiptap-resize-handle { background:#8b5cf6; border:2px solid white; border-radius:999px; height:12px; width:12px; }
