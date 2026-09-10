@@ -1,5 +1,7 @@
 # Deployment CMS dan Integrasi Website Tenant
 
+> Status 10 September 2026: integrasi tenant read-only `/api/v1/*` tetap aktif. Endpoint automation tulis `artikel-cms` adalah jalur terpisah dan tidak boleh mengekspos `SUPABASE_SERVICE_ROLE_KEY` ke tenant.
+
 **Versi:** 10 September 2026  
 **CMS canonical:** `https://cms.carubra.com`  
 **Supabase:** `https://supabase.carubra.com`  

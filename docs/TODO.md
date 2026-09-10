@@ -45,6 +45,19 @@
 - [x] Pagination dasar dan error response standar.
 - [x] Tambah rate limit per API key.
 - [x] Tambah dokumentasi integrasi dan contoh pemakaian website.
+- [ ] Tambah migration `external_id` dan unique partial index artikel per tenant.
+- [ ] Buat fungsi PostgreSQL atomik `artikel.upsert_automation_article`.
+- [ ] Buat Edge Function `artikel-cms` dengan action `article.upsert`.
+- [ ] Tambah audit request automation dengan redaksi secret dan base64 media.
+- [ ] Uji retry idempotent, duplicate slug, dan tenant isolation untuk Edge Function.
+- [ ] UAT satu tenant sebelum menambah action publish/archive/get.
+
+## Keputusan Perombakan API — 10 September 2026
+- [x] Update: automation write memakai satu endpoint Edge Function `artikel-cms`.
+- [x] Dipertahankan: CMS admin `/api/cms/*` dan Public Read API `/api/v1/*`.
+- [x] Dibatalkan: API automation untuk permanent `article.delete`.
+- [x] Dihilangkan: penggunaan atau distribusi `service_role` pada caller automation.
+- [x] Ditunda: `article.publish`, `article.archive`, dan `article.get` sampai `article.upsert` UAT.
 
 ## Fase 4 — QA/Rilis
 - [x] Unit test slug, workflow timestamp, transition, dan API key.

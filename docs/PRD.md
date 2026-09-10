@@ -1,6 +1,6 @@
 # PRD — CMS Artikel Multi-Website
 
-**Status:** Draft — 10 September 2026
+**Status:** Updated — 10 September 2026
 
 ## Ringkasan
 CMS responsif untuk membuat, meninjau, menyetujui, menerbitkan, dan menyajikan artikel/blog ke banyak website melalui Supabase self-hosted. Semua data berada di schema PostgreSQL `artikel`.
@@ -10,6 +10,7 @@ CMS responsif untuk membuat, meninjau, menyetujui, menerbitkan, dan menyajikan a
 - Website menjadi tenant melalui `artikel.sites` dan `site_id`.
 - Kategori tidak membuat tabel baru.
 - API key terikat pada website dan API hanya mengembalikan artikel `published` milik website tersebut.
+- Automation menulis artikel melalui satu Edge Function tenant-scoped; CMS admin dan Public Read API tetap terpisah.
 - Stack: Next.js App Router, TypeScript, Tailwind CSS, shadcn/ui, Tiptap, Supabase Auth/Storage.
 
 ## Role
@@ -25,6 +26,7 @@ CMS responsif untuk membuat, meninjau, menyetujui, menerbitkan, dan menyajikan a
 - API:
   - `GET /api/v1/articles?category={slug}&page=1&limit=10`
   - `GET /api/v1/articles/{slug}`
+- Automation API: `POST /functions/v1/artikel-cms` dengan `action=article.upsert` dan `external_id` idempotent.
 - API key lewat header `X-Artikel-Key`, bukan parameter domain yang dipercaya.
 
 ## Non-functional
@@ -35,4 +37,4 @@ CMS responsif untuk membuat, meninjau, menyetujui, menerbitkan, dan menyajikan a
 - Target p95 daftar artikel < 500 ms pada data terindeks.
 
 ## Tidak termasuk MVP
-Database/schema/tabel per website, multi-bahasa, real-time collaboration, A/B testing, newsletter, analytics.
+Database/schema/tabel per website, multi-bahasa, real-time collaboration, A/B testing, newsletter, analytics, dan delete permanen melalui API automation.
