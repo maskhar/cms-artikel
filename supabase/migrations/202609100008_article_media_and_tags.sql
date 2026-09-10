@@ -31,15 +31,21 @@ returns uuid language sql immutable as $$
   end;
 $$;
 
+drop policy if exists "members read article media" on storage.objects;
+drop policy if exists "members upload article media" on storage.objects;
+drop policy if exists "owners update article media" on storage.objects;
+drop policy if exists "owners delete article media" on storage.objects;
+
 create policy "members read article media" on storage.objects for select to authenticated
 using (bucket_id = 'artikel-media' and artikel.has_site_role(artikel.storage_site_id(name), array['admin','editor','writer']::artikel.user_role[]));
 
 create policy "members upload article media" on storage.objects for insert to authenticated
-with check (bucket_id = 'artikel-media' and owner_id = auth.uid() and artikel.has_site_role(artikel.storage_site_id(name), array['admin','editor','writer']::artikel.user_role[]));
+with check (bucket_id = 'artikel-media' and owner_id = auth.uid()::text and artikel.has_site_role(artikel.storage_site_id(name), array['admin','editor','writer']::artikel.user_role[]));
 
 create policy "owners update article media" on storage.objects for update to authenticated
-using (bucket_id = 'artikel-media' and owner_id = auth.uid() and artikel.has_site_role(artikel.storage_site_id(name), array['admin','editor','writer']::artikel.user_role[]))
-with check (bucket_id = 'artikel-media' and owner_id = auth.uid() and artikel.has_site_role(artikel.storage_site_id(name), array['admin','editor','writer']::artikel.user_role[]));
+using (bucket_id = 'artikel-media' and owner_id = auth.uid()::text and artikel.has_site_role(artikel.storage_site_id(name), array['admin','editor','writer']::artikel.user_role[]))
+with check (bucket_id = 'artikel-media' and owner_id = auth.uid()::text and artikel.has_site_role(artikel.storage_site_id(name), array['admin','editor','writer']::artikel.user_role[]));
 
 create policy "owners delete article media" on storage.objects for delete to authenticated
-using (bucket_id = 'artikel-media' and owner_id = auth.uid() and artikel.has_site_role(artikel.storage_site_id(name), array['admin','editor','writer']::artikel.user_role[]));
+using (bucket_id = 'artikel-media' and owner_id = auth.uid()::text and artikel.has_site_role(artikel.storage_site_id(name), array['admin','editor','writer']::artikel.user_role[]));
+

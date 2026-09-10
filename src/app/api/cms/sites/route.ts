@@ -7,7 +7,7 @@ export async function GET() {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: "Unauthenticated" }, { status: 401 });
-  const { data, error } = await supabase.schema("artikel").from("sites").select("id, name, domain, slug, is_active").eq("is_active", true).order("name");
+  const { data, error } = await supabase.schema("artikel").from("sites").select("id, name, domain, slug, is_active").order("name");
   if (error) return NextResponse.json({ error: error.message }, { status: 400 });
   return NextResponse.json({ data });
 }

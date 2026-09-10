@@ -1,5 +1,18 @@
 @import "tailwindcss";
-:root { --ink:#172033; --muted:#64748b; --line:#e2e8f0; --navy:#0f172a; --blue:#2563eb; --canvas:#f8fafc; }
+@theme {
+  --color-violet-50: #fdf2f2;
+  --color-violet-100: #fbe3e4;
+  --color-violet-200: #f7c5c7;
+  --color-violet-300: #f0999d;
+  --color-violet-400: #e45c62;
+  --color-violet-500: #d83238;
+  --color-violet-600: #CE181E;
+  --color-violet-700: #aa1419;
+  --color-violet-800: #8d161a;
+  --color-violet-900: #75191c;
+  --color-violet-950: #40090b;
+}
+:root { --brand:#CE181E; --ink:#172033; --muted:#64748b; --line:#e2e8f0; --navy:#0f172a; --blue:#2563eb; --canvas:#f8fafc; }
 * { box-sizing:border-box; }
 body { margin:0; background:var(--canvas); color:var(--ink); font-family:Arial, Helvetica, sans-serif; }
 .tiptap h2 { margin:1.25rem 0 .5rem; font-size:1.35rem; font-weight:700; }
@@ -10,5 +23,5 @@ body { margin:0; background:var(--canvas); color:var(--ink); font-family:Arial, 
 .tiptap a { color:#2563eb; text-decoration:underline; }
 .tiptap [data-placeholder]:first-child::before { color:#94a3b8; content:attr(data-placeholder); float:left; height:0; pointer-events:none; }
 .tiptap .editor-image { display:block; max-width:100%; height:auto; margin:1.5rem auto; border-radius:1rem; box-shadow:0 12px 28px rgba(15,23,42,.12); }
-.tiptap .ProseMirror-selectednode { outline:3px solid #8b5cf6; outline-offset:3px; }
-.tiptap .tiptap-resize-handle { background:#8b5cf6; border:2px solid white; border-radius:999px; height:12px; width:12px; }
+.tiptap .ProseMirror-selectednode { outline:3px solid var(--brand); outline-offset:3px; }
+.tiptap .tiptap-resize-handle { background:var(--brand); border:2px solid white; border-radius:999px; height:12px; width:12px; }

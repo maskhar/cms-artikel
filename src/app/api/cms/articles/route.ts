@@ -12,6 +12,8 @@ const articleSchema = z.object({
   content: z.string().default(""),
   seoTitle: z.string().max(180).optional().default(""),
   metaDescription: z.string().max(320).optional().default(""),
+  featuredImagePath: z.string().max(500).nullable().optional(),
+  ogImagePath: z.string().max(500).nullable().optional(),
   tagIds: z.array(z.string().uuid()).max(30).default([]),
 });
 
@@ -29,6 +31,14 @@ async function replaceTags(supabase: Awaited<ReturnType<typeof createClient>>, a
   if (insertError) throw new Error(insertError.message);
 }
 
+export async function GET() {
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return NextResponse.json({ error: "Unauthenticated" }, { status: 401 });
+  const { data, error } = await supabase.schema("artikel").from("articles").select("id, site_id, title, slug, status, updated_at, categories(name)").order("updated_at", { ascending: false });
+  if (error) return NextResponse.json({ error: error.message }, { status: 400 });
+  return NextResponse.json({ data });
+}
 export async function POST(request: Request) {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
@@ -36,7 +46,7 @@ export async function POST(request: Request) {
   const parsed = articleSchema.safeParse(await request.json());
   if (!parsed.success) return NextResponse.json({ error: "Invalid article payload", issues: parsed.error.flatten() }, { status: 400 });
   const input = parsed.data;
-  const { data, error } = await supabase.schema("artikel").from("articles").insert({ site_id: input.siteId, category_id: input.categoryId, author_id: user.id, title: input.title, slug: input.slug, excerpt: input.excerpt, content: input.content, seo_title: input.seoTitle, meta_description: input.metaDescription }).select("id").single();
+  const { data, error } = await supabase.schema("artikel").from("articles").insert({ site_id: input.siteId, category_id: input.categoryId, author_id: user.id, title: input.title, slug: input.slug, excerpt: input.excerpt, content: input.content, seo_title: input.seoTitle, meta_description: input.metaDescription, featured_image_path: input.featuredImagePath ?? null, og_image_path: input.ogImagePath ?? null }).select("id").single();
   if (error) return NextResponse.json({ error: error.message }, { status: 400 });
   try {
     await replaceTags(supabase, data.id, input.siteId, input.tagIds);

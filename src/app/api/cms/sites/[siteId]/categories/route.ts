@@ -16,3 +16,14 @@ export async function POST(request: Request, { params }: { params: Promise<{ sit
   return NextResponse.json({ data }, { status: 201 });
 }
 
+export async function GET(_request: Request, { params }: { params: Promise<{ siteId: string }> }) {
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return NextResponse.json({ error: "Unauthenticated" }, { status: 401 });
+  const siteId = (await params).siteId;
+  if (!z.string().uuid().safeParse(siteId).success) return NextResponse.json({ error: "Invalid site ID" }, { status: 400 });
+  const { data, error } = await supabase.schema("artikel").from("categories").select("id, name, slug, description, is_active").eq("site_id", siteId).order("name");
+  if (error) return NextResponse.json({ error: error.message }, { status: 400 });
+  return NextResponse.json({ data });
+}
+

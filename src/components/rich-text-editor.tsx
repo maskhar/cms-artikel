@@ -8,7 +8,7 @@ import { FontFamily, FontSize, LineHeight, TextStyle } from "@tiptap/extension-t
 import Underline from "@tiptap/extension-underline";
 import StarterKit from "@tiptap/starter-kit";
 import { EditorContent, useEditor } from "@tiptap/react";
-import { AlignCenter, AlignLeft, AlignRight, Bold, Code2, Heading1, Heading2, Highlighter, ImagePlus, Italic, Link2, List, ListOrdered, LoaderCircle, Quote, Redo2, RemoveFormatting, Strikethrough, Underline as UnderlineIcon, Undo2 } from "lucide-react";
+import { AlignCenter, AlignLeft, AlignRight, Bold, Code2, Heading1, Heading2, Highlighter, ImagePlus, Italic, Link2, List, ListOrdered, LoaderCircle, Maximize2, Minimize2, FileCode, Quote, Redo2, RemoveFormatting, Strikethrough, Underline as UnderlineIcon, Undo2 } from "lucide-react";
 import { usePathname } from "next/navigation";
 import { ChangeEvent, useEffect, useRef, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
@@ -21,12 +21,14 @@ export function RichTextEditor({ value, onChange, siteId, mediaFolder, placehold
   const uploadInput = useRef<HTMLInputElement>(null);
   const [uploading, setUploading] = useState(false);
   const [message, setMessage] = useState("");
+  const [fullscreen, setFullscreen] = useState(false);
+  const [htmlMode, setHtmlMode] = useState(false);
   const [resolvedMedia, setResolvedMedia] = useState({ siteId: siteId ?? "", folder: mediaFolder ?? "" });
   const pathname = usePathname();
   const effectiveMedia = { siteId: siteId ?? resolvedMedia.siteId, folder: mediaFolder ?? resolvedMedia.folder };
   const editor = useEditor({
     extensions: [
-      StarterKit.configure({ heading: { levels: [1, 2, 3] } }), TextStyle, FontFamily, FontSize, LineHeight, Underline, Highlight.configure({ multicolor: true }),
+      StarterKit.configure({ heading: { levels: [1, 2, 3] }, link: false, underline: false }), TextStyle, FontFamily, FontSize, LineHeight, Underline, Highlight.configure({ multicolor: true }),
       Link.configure({ openOnClick: false, autolink: true, linkOnPaste: true }), TextAlign.configure({ types: ["heading", "paragraph"] }),
       Image.configure({ allowBase64: false, HTMLAttributes: { class: "editor-image" }, resize: { enabled: true, minWidth: 140, minHeight: 100, alwaysPreserveAspectRatio: true } }),
     ],
@@ -43,7 +45,7 @@ export function RichTextEditor({ value, onChange, siteId, mediaFolder, placehold
   useEffect(() => {
     if (siteId && mediaFolder) return;
     const articleId = pathname.match(/^\/articles\/([^/]+)$/)?.[1];
-    if (!articleId) return;
+    if (!articleId || articleId === "new") return;
     void fetch(`/api/cms/articles/${articleId}`).then((response) => response.json()).then((body) => { if (body.data?.site_id) setResolvedMedia({ siteId: body.data.site_id, folder: articleId }); });
   }, [mediaFolder, pathname, siteId]);
 
@@ -66,7 +68,7 @@ export function RichTextEditor({ value, onChange, siteId, mediaFolder, placehold
     editor.chain().focus().setImage({ src: data.signedUrl, alt: file.name.replace(/\.[^.]+$/, ""), title: path, width: 960 }).run();
   }
 
-  return <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+  return <div className={`${fullscreen ? "fixed inset-3 z-[100] flex flex-col md:inset-6" : ""} overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm`}>
     <div className="sticky top-0 z-10 border-b border-slate-200 bg-white/95 p-2 backdrop-blur">
       <div className="flex flex-wrap items-center gap-1">
         <select aria-label="Gaya teks" defaultValue="paragraph" onChange={(event) => action(() => { const type = event.target.value; if (type === "h1") editor?.chain().focus().toggleHeading({ level: 1 }).run(); else if (type === "h2") editor?.chain().focus().toggleHeading({ level: 2 }).run(); else if (type === "h3") editor?.chain().focus().toggleHeading({ level: 3 }).run(); else editor?.chain().focus().setParagraph().run(); })} className="h-9 rounded-lg border border-slate-200 bg-white px-2 text-sm font-medium outline-none focus:ring-2 focus:ring-violet-500"><option value="paragraph">Paragraf</option><option value="h1">Heading 1</option><option value="h2">Heading 2</option><option value="h3">Heading 3</option></select>
@@ -81,10 +83,11 @@ export function RichTextEditor({ value, onChange, siteId, mediaFolder, placehold
         <span className="mx-1 h-6 w-px bg-slate-200"/>
         <button type="button" aria-label="Tambah tautan" title="Tambah tautan" onClick={setLink} className={buttonClass}><Link2 size={17}/></button><button type="button" aria-label="Tambah gambar" title="Tambah gambar" onClick={() => uploadInput.current?.click()} disabled={uploading} className={buttonClass}>{uploading ? <LoaderCircle className="animate-spin" size={17}/> : <ImagePlus size={17}/>}</button><input ref={uploadInput} type="file" accept="image/jpeg,image/png,image/webp,image/gif" onChange={uploadImage} className="sr-only"/>
         <span className="mx-1 h-6 w-px bg-slate-200"/>
+        <button type="button" aria-label="Edit HTML" title="Edit HTML" onClick={() => setHtmlMode((current) => !current)} className={buttonClass}><FileCode size={17}/></button><button type="button" aria-label={fullscreen ? "Keluar fullscreen" : "Buka fullscreen"} title={fullscreen ? "Keluar fullscreen" : "Buka fullscreen"} onClick={() => setFullscreen((current) => !current)} className={buttonClass}>{fullscreen ? <Minimize2 size={17}/> : <Maximize2 size={17}/>}</button><span className="mx-1 h-6 w-px bg-slate-200"/>
         <button type="button" aria-label="Undo" title="Undo" onClick={() => action(() => editor?.chain().focus().undo().run())} className={buttonClass}><Undo2 size={17}/></button><button type="button" aria-label="Redo" title="Redo" onClick={() => action(() => editor?.chain().focus().redo().run())} className={buttonClass}><Redo2 size={17}/></button><button type="button" aria-label="Hapus format" title="Hapus format" onClick={() => action(() => editor?.chain().focus().unsetAllMarks().clearNodes().run())} className={buttonClass}><RemoveFormatting size={17}/></button>
       </div>
     </div>
-    <EditorContent editor={editor}/>{message && <p className="border-t border-amber-100 bg-amber-50 px-5 py-3 text-sm text-amber-800">{message}</p>}
+    {htmlMode ? <textarea aria-label="HTML artikel" value={value} onChange={(event) => onChange(event.target.value)} className={`${fullscreen ? "flex-1" : "min-h-[420px]"} w-full resize-y bg-slate-950 p-5 font-mono text-sm leading-6 text-slate-100 outline-none`}/> : <div className={fullscreen ? "min-h-0 flex-1 overflow-y-auto" : ""}><EditorContent editor={editor}/></div>}{message && <p className="border-t border-amber-100 bg-amber-50 px-5 py-3 text-sm text-amber-800">{message}</p>}
     <div className="flex items-center justify-between border-t border-slate-100 px-5 py-3 text-xs text-slate-400"><span>{uploading ? "Mengunggah gambar…" : "Pilih gambar lalu tarik sudutnya untuk mengubah ukuran."}</span><span>{editor?.storage.characterCount?.characters?.() ?? value.replace(/<[^>]+>/g, "").length} karakter</span></div>
   </div>;
 }

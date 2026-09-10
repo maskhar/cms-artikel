@@ -1,0 +1,3 @@
+import { NextResponse } from "next/server";
+import { createClient } from "@/lib/supabase/server";
+export async function DELETE(_request: Request, { params }: { params: Promise<{ articleId: string; addonId: string }> }) { const supabase = await createClient(); const { data: { user } } = await supabase.auth.getUser(); if (!user) return NextResponse.json({ error: "Unauthenticated" }, { status: 401 }); const values = await params; const { error } = await supabase.schema("artikel").from("article_addons").delete().eq("id", values.addonId).eq("article_id", values.articleId); return error ? NextResponse.json({ error: error.message }, { status: 400 }) : NextResponse.json({ success: true }); }
