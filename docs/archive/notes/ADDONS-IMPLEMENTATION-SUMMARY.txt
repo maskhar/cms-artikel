@@ -1,0 +1,63 @@
+=== RINGKASAN LENGKAP PERUBAHAN ===
+
+FITUR YANG DITAMBAHKAN:
+1. Add-ons Panel di halaman artikel baru
+2. Drag-and-drop untuk menyusun ulang add-ons
+3. Endpoint reorder untuk menyimpan urutan add-ons
+
+FILES YANG DIMODIFIKASI:
+
+1. src/app/articles/new/page.tsx
+   - Menambahkan import ArticleAddonsPanel
+   - Menambahkan komponen ArticleAddonsPanel di sidebar
+
+2. src/components/article-addons-panel.tsx
+   - Menghapus nested form (form diganti dengan div)
+   - Menambahkan useRef untuk titleRef dan placementRef
+   - Mengubah fungsi add() untuk menggunakan refs langsung
+   - Menambahkan state draggedIndex untuk drag-and-drop
+   - Menambahkan fungsi handleDragStart, handleDragOver, handleDragEnd
+   - Menambahkan atribut draggable pada artikel add-on
+   - Menambahkan cursor-move class untuk UX yang lebih baik
+
+3. src/app/api/cms/articles/[articleId]/addons/reorder/route.ts (BARU)
+   - Endpoint PATCH untuk menyimpan urutan add-ons
+   - Menerima array addonIds dan mengupdate sort_order
+
+MASALAH YANG DIPERBAIKI:
+✓ Nested form error (form di dalam form)
+✓ FormData constructor error (HTMLDivElement bukan HTMLFormElement)
+✓ Hydration error dari React
+
+FITUR DRAG-AND-DROP:
+- User dapat drag add-on untuk mengubah urutan
+- Urutan otomatis tersimpan ke database setelah drag selesai
+- Cursor berubah menjadi move saat hover di atas add-on
+- Smooth reordering dengan visual feedback
+
+CARA MENGGUNAKAN:
+1. Buka halaman artikel baru (/articles/new)
+2. Pilih website dan kategori
+3. Scroll ke sidebar kanan, cari panel "Add-ons"
+4. Pilih tipe add-on dari dropdown
+5. Isi judul (opsional), pilih placement
+6. Untuk gallery/image slider: pilih gallery
+7. Untuk PDF viewer: upload file PDF
+8. Isi config JSON jika perlu (default: {})
+9. Klik "Tambah add-on"
+10. Drag add-on untuk mengubah urutan
+11. Hapus dengan klik icon trash
+
+ADDON TYPES TERSEDIA:
+- image_slider: Slider gambar dari gallery
+- gallery: Galeri foto
+- pdf_viewer: Tampilkan PDF (max 20MB)
+- video_embed: Embed video
+- call_to_action: Tombol CTA
+- faq: FAQ section
+- related_articles: Artikel terkait
+- table_of_contents: Daftar isi
+- highlight_box: Kotak highlight
+- file_download: Link download file
+
+STATUS: ✅ SIAP DIGUNAKAN

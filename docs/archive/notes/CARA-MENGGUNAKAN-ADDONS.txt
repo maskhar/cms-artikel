@@ -1,0 +1,41 @@
+=== CARA MENGGUNAKAN ADD-ONS ===
+
+Fitur Add-ons memungkinkan Anda menambahkan konten tambahan ke artikel, seperti galeri gambar, PDF viewer, video embed, dan lainnya.
+
+LANGKAH-LANGKAH:
+
+1. Pilih Website dan Kategori
+   - Pilih website terlebih dahulu untuk memuat daftar gallery yang tersedia
+
+2. Pilih Tipe Add-on
+   - image slider: Slider gambar dari gallery
+   - gallery: Galeri foto dari gallery yang sudah dibuat
+   - pdf_viewer: Menampilkan PDF di artikel
+   - video_embed: Embed video
+   - call_to_action: Tombol CTA
+   - faq: FAQ section
+   - related_articles: Artikel terkait
+   - table_of_contents: Daftar isi
+   - highlight_box: Kotak highlight
+   - file_download: Link download file
+
+3. Isi Form Add-on
+   - Judul add-on: Opsional, untuk identifikasi
+   - Placement: Sebelum konten atau setelah konten
+   - Pilih gallery (untuk image slider dan gallery)
+   - Upload PDF (untuk pdf_viewer)
+   - Config JSON: Konfigurasi tambahan (default: {})
+
+4. Klik "Tambah add-on"
+   - Add-on akan muncul di daftar
+   - Bisa ditambahkan multiple add-ons
+
+5. Menghapus Add-on
+   - Klik icon trash di samping add-on yang ingin dihapus
+   - Konfirmasi penghapusan
+
+CATATAN:
+- Untuk menggunakan gallery atau image slider, buat gallery terlebih dahulu di menu Gallery
+- PDF maksimum 20 MB
+- Config JSON harus valid JSON format
+

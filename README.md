@@ -41,20 +41,14 @@ Platform multi-tenant untuk membuat, mereview, menyetujui, dan menerbitkan artik
 
 | Dokumen | Deskripsi |
 |---------|-----------|
+| [docs/README.md](docs/README.md) | Indeks dokumentasi aktif, referensi, dan arsip |
+| [API.md](docs/API.md) | Kontrak final Automation API dan Public Read API |
 | [PRD.md](docs/PRD.md) | Product Requirements Document |
 | [SDD.md](docs/SDD.md) | System Design Document |
 | [TODO.md](docs/TODO.md) | Development checklist & roadmap |
 | [API-INTEGRATION.md](docs/API-INTEGRATION.md) | Panduan integrasi Public Read API |
 | [DEPLOYMENT-TENANT-API.md](docs/DEPLOYMENT-TENANT-API.md) | Deployment runbook lengkap |
-| [UNIFIED-CMS-API-DESIGN.md](docs/UNIFIED-CMS-API-DESIGN.md) | Automation API design (upcoming) |
-
-### Session Logs
-
-| File | Deskripsi |
-|------|-----------|
-| [HANDOFF-2026-09-10.txt](HANDOFF-2026-09-10.txt) | Status production & keputusan arsitektur |
-| [SESSION-SUMMARY-2026-09-10.txt](SESSION-SUMMARY-2026-09-10.txt) | Log detail lengkap sesi terakhir |
-| [NEXT-SESSION-QUICKSTART.md](NEXT-SESSION-QUICKSTART.md) | Quick start implementasi Edge Function |
+| [UNIFIED-CMS-API-DESIGN.md](docs/UNIFIED-CMS-API-DESIGN.md) | Desain arsitektur Automation API |
 
 ---
 
