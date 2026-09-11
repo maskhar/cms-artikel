@@ -3,6 +3,14 @@ import { z } from "zod";
 import { createClient } from "@/lib/supabase/server";
 import { slugPattern } from "@/lib/slug";
 
+const addonTypeSchema = z.enum(["gallery", "pdf_viewer", "image_slider", "video_embed", "call_to_action", "faq", "related_articles", "table_of_contents", "highlight_box", "file_download"]);
+const articleAddonSchema = z.object({
+  addon_type: addonTypeSchema,
+  title: z.string().max(180).default(""),
+  placement: z.enum(["before_content", "after_content"]).default("after_content"),
+  config: z.record(z.string(), z.unknown()).default({}),
+});
+
 const articleSchema = z.object({
   siteId: z.string().uuid(),
   categoryId: z.string().uuid(),
@@ -15,6 +23,7 @@ const articleSchema = z.object({
   featuredImagePath: z.string().max(500).nullable().optional(),
   ogImagePath: z.string().max(500).nullable().optional(),
   tagIds: z.array(z.string().uuid()).max(30).default([]),
+  addons: z.array(articleAddonSchema).max(30).default([]),
 });
 
 async function replaceTags(supabase: Awaited<ReturnType<typeof createClient>>, articleId: string, siteId: string, tagIds: string[]) {
@@ -50,9 +59,22 @@ export async function POST(request: Request) {
   if (error) return NextResponse.json({ error: error.message }, { status: 400 });
   try {
     await replaceTags(supabase, data.id, input.siteId, input.tagIds);
-  } catch (tagError) {
+    if (input.addons.length) {
+      const { error: addonError } = await supabase.schema("artikel").from("article_addons").insert(input.addons.map((addon, sortOrder) => ({
+        article_id: data.id,
+        site_id: input.siteId,
+        addon_type: addon.addon_type,
+        title: addon.title,
+        placement: addon.placement,
+        config: addon.config,
+        sort_order: sortOrder,
+        created_by: user.id,
+      })));
+      if (addonError) throw new Error(addonError.message);
+    }
+  } catch (writeError) {
     await supabase.schema("artikel").from("articles").delete().eq("id", data.id);
-    return NextResponse.json({ error: tagError instanceof Error ? tagError.message : "Tag gagal disimpan." }, { status: 400 });
+    return NextResponse.json({ error: writeError instanceof Error ? writeError.message : "Artikel gagal disimpan." }, { status: 400 });
   }
   return NextResponse.json({ data }, { status: 201 });
 }

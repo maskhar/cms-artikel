@@ -36,7 +36,7 @@ export async function GET(_request: Request, { params }: { params: Promise<{ art
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: "Unauthenticated" }, { status: 401 });
   const id = (await params).articleId;
-  const articleResult = await supabase.schema("artikel").from("articles").select("id, site_id, category_id, title, slug, excerpt, content, featured_image_path, og_image_path, seo_title, meta_description, status, created_at, updated_at, categories(name), sites(name), article_tags(tag_id, tags(id, name, slug))").eq("id", id).single();
+  const articleResult = await supabase.schema("artikel").from("articles").select("id, site_id, category_id, title, slug, excerpt, content, featured_image_path, og_image_path, seo_title, meta_description, status, created_at, updated_at, categories(name), sites(name, slug), article_tags(tag_id, tags(id, name, slug))").eq("id", id).single();
   if (articleResult.error) return NextResponse.json({ error: articleResult.error.message }, { status: 404 });
   const article = articleResult.data;
   const [revisionsResult, commentsResult, rolesResult, tagsResult] = await Promise.all([
@@ -68,3 +68,4 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ ar
   }
   return NextResponse.json({ success: true });
 }
+

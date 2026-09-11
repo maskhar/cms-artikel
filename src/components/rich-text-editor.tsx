@@ -10,12 +10,12 @@ import StarterKit from "@tiptap/starter-kit";
 import { EditorContent, useEditor } from "@tiptap/react";
 import { AlignCenter, AlignLeft, AlignRight, Bold, Code2, Heading1, Heading2, Highlighter, ImagePlus, Italic, Link2, List, ListOrdered, LoaderCircle, Maximize2, Minimize2, FileCode, Quote, Redo2, RemoveFormatting, Strikethrough, Underline as UnderlineIcon, Undo2 } from "lucide-react";
 import { usePathname } from "next/navigation";
-import { ChangeEvent, useEffect, useRef, useState } from "react";
+import { ChangeEvent, DragEvent, useEffect, useRef, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 
 type RichTextEditorProps = { value: string; onChange: (value: string) => void; siteId?: string; mediaFolder?: string; placeholder?: string };
 const imageTypes = new Set(["image/jpeg", "image/png", "image/webp", "image/gif"]);
-const buttonClass = "grid h-9 w-9 place-items-center rounded-lg text-slate-600 transition hover:bg-slate-100 hover:text-slate-950 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-500 disabled:cursor-not-allowed disabled:opacity-40";
+const buttonClass = "grid h-9 w-9 place-items-center rounded-lg text-slate-600 transition hover:bg-slate-100 hover:text-slate-950 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#CE181E] disabled:cursor-not-allowed disabled:opacity-40";
 
 export function RichTextEditor({ value, onChange, siteId, mediaFolder, placeholder = "Mulai tulis artikel…" }: RichTextEditorProps) {
   const uploadInput = useRef<HTMLInputElement>(null);
@@ -42,6 +42,8 @@ export function RichTextEditor({ value, onChange, siteId, mediaFolder, placehold
     if (editor && value !== editor.getHTML()) editor.commands.setContent(value, { emitUpdate: false });
   }, [editor, value]);
 
+  useEffect(() => { const handleInsert = (event: Event) => { const addon = (event as CustomEvent<{ id: string; addonType: string; title: string }>).detail; if (addon) insertAddonMarker(addon); }; window.addEventListener("artikel:insert-addon", handleInsert); return () => window.removeEventListener("artikel:insert-addon", handleInsert); }, [editor]);
+
   useEffect(() => {
     if (siteId && mediaFolder) return;
     const articleId = pathname.match(/^\/articles\/([^/]+)$/)?.[1];
@@ -50,6 +52,8 @@ export function RichTextEditor({ value, onChange, siteId, mediaFolder, placehold
   }, [mediaFolder, pathname, siteId]);
 
   function action(run: () => void) { if (editor) run(); }
+  function insertAddonMarker(addon: { id: string; addonType: string; title: string }, position?: number) { if (!editor) return; editor.chain().focus().insertContentAt(position ?? editor.state.doc.content.size, { type: "paragraph", content: [{ type: "text", text: "[Add-on: " + (addon.title || addon.addonType) + "]" }] }).run(); }
+  function dropAddon(event: DragEvent<HTMLDivElement>) { const raw = event.dataTransfer.getData("application/x-artikel-addon"); if (!raw || !editor) return; event.preventDefault(); try { const addon = JSON.parse(raw) as { id: string; addonType: string; title: string }; const coordinates = editor.view.posAtCoords({ left: event.clientX, top: event.clientY }); insertAddonMarker(addon, coordinates?.pos); } catch { setMessage("Add-on tidak dapat ditempatkan di editor."); } }
   function setLink() { const href = window.prompt("Masukkan URL tautan"); if (href) action(() => editor?.chain().focus().extendMarkRange("link").setLink({ href }).run()); }
   async function uploadImage(event: ChangeEvent<HTMLInputElement>) {
     const file = event.target.files?.[0]; event.target.value = "";
@@ -68,12 +72,12 @@ export function RichTextEditor({ value, onChange, siteId, mediaFolder, placehold
     editor.chain().focus().setImage({ src: data.signedUrl, alt: file.name.replace(/\.[^.]+$/, ""), title: path, width: 960 }).run();
   }
 
-  return <div className={`${fullscreen ? "fixed inset-3 z-[100] flex flex-col md:inset-6" : ""} overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm`}>
+  return <div onDragOver={(event) => { if (event.dataTransfer.types.includes("application/x-artikel-addon")) event.preventDefault(); }} onDrop={dropAddon} className={`${fullscreen ? "fixed inset-3 z-[100] flex flex-col md:inset-6" : ""} overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm`}>
     <div className="sticky top-0 z-10 border-b border-slate-200 bg-white/95 p-2 backdrop-blur">
       <div className="flex flex-wrap items-center gap-1">
-        <select aria-label="Gaya teks" defaultValue="paragraph" onChange={(event) => action(() => { const type = event.target.value; if (type === "h1") editor?.chain().focus().toggleHeading({ level: 1 }).run(); else if (type === "h2") editor?.chain().focus().toggleHeading({ level: 2 }).run(); else if (type === "h3") editor?.chain().focus().toggleHeading({ level: 3 }).run(); else editor?.chain().focus().setParagraph().run(); })} className="h-9 rounded-lg border border-slate-200 bg-white px-2 text-sm font-medium outline-none focus:ring-2 focus:ring-violet-500"><option value="paragraph">Paragraf</option><option value="h1">Heading 1</option><option value="h2">Heading 2</option><option value="h3">Heading 3</option></select>
-        <select aria-label="Jenis font" defaultValue="inherit" onChange={(event) => action(() => event.target.value === "inherit" ? editor?.chain().focus().unsetFontFamily().run() : editor?.chain().focus().setFontFamily(event.target.value).run())} className="h-9 max-w-28 rounded-lg border border-slate-200 bg-white px-2 text-sm outline-none focus:ring-2 focus:ring-violet-500"><option value="inherit">Default</option><option value="Arial">Arial</option><option value="Georgia">Georgia</option><option value="Verdana">Verdana</option><option value="Courier New">Mono</option></select>
-        <select aria-label="Ukuran teks" defaultValue="17px" onChange={(event) => action(() => event.target.value === "default" ? editor?.chain().focus().unsetFontSize().run() : editor?.chain().focus().setFontSize(event.target.value).run())} className="h-9 rounded-lg border border-slate-200 bg-white px-2 text-sm outline-none focus:ring-2 focus:ring-violet-500"><option value="default">Ukuran</option><option value="14px">14</option><option value="16px">16</option><option value="17px">17</option><option value="20px">20</option><option value="24px">24</option><option value="32px">32</option></select>
+        <select aria-label="Gaya teks" defaultValue="paragraph" onChange={(event) => action(() => { const type = event.target.value; if (type === "h1") editor?.chain().focus().toggleHeading({ level: 1 }).run(); else if (type === "h2") editor?.chain().focus().toggleHeading({ level: 2 }).run(); else if (type === "h3") editor?.chain().focus().toggleHeading({ level: 3 }).run(); else editor?.chain().focus().setParagraph().run(); })} className="h-9 rounded-lg border border-slate-200 bg-white px-2 text-sm font-medium outline-none focus:ring-2 focus:ring-[#CE181E]"><option value="paragraph">Paragraf</option><option value="h1">Heading 1</option><option value="h2">Heading 2</option><option value="h3">Heading 3</option></select>
+        <select aria-label="Jenis font" defaultValue="inherit" onChange={(event) => action(() => event.target.value === "inherit" ? editor?.chain().focus().unsetFontFamily().run() : editor?.chain().focus().setFontFamily(event.target.value).run())} className="h-9 max-w-28 rounded-lg border border-slate-200 bg-white px-2 text-sm outline-none focus:ring-2 focus:ring-[#CE181E]"><option value="inherit">Default</option><option value="Arial">Arial</option><option value="Georgia">Georgia</option><option value="Verdana">Verdana</option><option value="Courier New">Mono</option></select>
+        <select aria-label="Ukuran teks" defaultValue="17px" onChange={(event) => action(() => event.target.value === "default" ? editor?.chain().focus().unsetFontSize().run() : editor?.chain().focus().setFontSize(event.target.value).run())} className="h-9 rounded-lg border border-slate-200 bg-white px-2 text-sm outline-none focus:ring-2 focus:ring-[#CE181E]"><option value="default">Ukuran</option><option value="14px">14</option><option value="16px">16</option><option value="17px">17</option><option value="20px">20</option><option value="24px">24</option><option value="32px">32</option></select>
         <span className="mx-1 h-6 w-px bg-slate-200"/>
         <button type="button" aria-label="Bold" title="Bold" onClick={() => action(() => editor?.chain().focus().toggleBold().run())} className={buttonClass}><Bold size={17}/></button><button type="button" aria-label="Italic" title="Italic" onClick={() => action(() => editor?.chain().focus().toggleItalic().run())} className={buttonClass}><Italic size={17}/></button><button type="button" aria-label="Underline" title="Underline" onClick={() => action(() => editor?.chain().focus().toggleUnderline().run())} className={buttonClass}><UnderlineIcon size={17}/></button><button type="button" aria-label="Strikethrough" title="Strikethrough" onClick={() => action(() => editor?.chain().focus().toggleStrike().run())} className={buttonClass}><Strikethrough size={17}/></button><button type="button" aria-label="Highlight" title="Highlight" onClick={() => action(() => editor?.chain().focus().toggleHighlight({ color: "#fde68a" }).run())} className={buttonClass}><Highlighter size={17}/></button>
         <span className="mx-1 h-6 w-px bg-slate-200"/>
