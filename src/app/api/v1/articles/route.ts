@@ -16,5 +16,13 @@ export async function GET(request: NextRequest) {
   const start = (page - 1) * limit;
   const { data, error, count } = await supabase.from("articles").select("title, slug, excerpt, featured_image_path, seo_title, meta_description, published_at, categories!inner(slug, name), article_tags(tags(name, slug))", { count: "exact" }).eq("site_id", authentication.apiKey.site_id).eq("status", "published").eq("categories.slug", category).order("published_at", { ascending: false }).range(start, start + limit - 1);
   if (error) return NextResponse.json({ error: { code: "INTERNAL_ERROR", message: "Artikel tidak dapat dimuat." } }, { status: 500, headers: authentication.headers });
-  return NextResponse.json({ data, meta: { page, limit, total: count ?? 0 } }, { headers: authentication.headers });
+  const publicData = await Promise.all((data ?? []).map(async (article) => {
+    const { data: image } = article.featured_image_path
+      ? await createAdminClient().storage.from("artikel-media").createSignedUrl(article.featured_image_path, 3600)
+      : { data: null };
+    const category = Array.isArray(article.categories) ? article.categories[0] : article.categories;
+    return { ...article, featured_image_url: image?.signedUrl ?? null, category };
+  }));
+  return NextResponse.json({ data: publicData, meta: { page, limit, total: count ?? 0 } }, { headers: authentication.headers });
 }
+

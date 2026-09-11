@@ -1,0 +1,13 @@
+alter table artikel.media_assets alter column site_id drop not null;
+alter table artikel.media_assets drop constraint if exists media_assets_site_id_fkey, add constraint media_assets_site_id_fkey foreign key (site_id) references artikel.sites(id) on delete set null;
+drop policy if exists "members read media assets" on artikel.media_assets;
+drop policy if exists "members create media assets" on artikel.media_assets;
+drop policy if exists "editors manage media assets" on artikel.media_assets;
+drop policy if exists "editors delete media assets" on artikel.media_assets;
+create policy "members read media assets" on artikel.media_assets for select to authenticated using (site_id is null or artikel.has_site_role(site_id, array['admin','editor','writer']::artikel.user_role[]));
+create policy "members create media assets" on artikel.media_assets for insert to authenticated with check (created_by = auth.uid() and (site_id is null or artikel.has_site_role(site_id, array['admin','editor','writer']::artikel.user_role[])));
+create policy "editors manage media assets" on artikel.media_assets for update to authenticated using (created_by = auth.uid() or (site_id is not null and artikel.has_site_role(site_id, array['admin','editor']::artikel.user_role[]))) with check (created_by = auth.uid() or (site_id is not null and artikel.has_site_role(site_id, array['admin','editor']::artikel.user_role[])));
+create policy "editors delete media assets" on artikel.media_assets for delete to authenticated using (created_by = auth.uid() or (site_id is not null and artikel.has_site_role(site_id, array['admin','editor']::artikel.user_role[])));
+create policy "members read global media storage" on storage.objects for select to authenticated using (bucket_id = 'artikel-media' and split_part(name, '/', 1) = 'global');
+create policy "members upload global media storage" on storage.objects for insert to authenticated with check (bucket_id = 'artikel-media' and owner_id = auth.uid()::text and split_part(name, '/', 1) = 'global');
+create policy "owners delete global media storage" on storage.objects for delete to authenticated using (bucket_id = 'artikel-media' and owner_id = auth.uid()::text and split_part(name, '/', 1) = 'global');

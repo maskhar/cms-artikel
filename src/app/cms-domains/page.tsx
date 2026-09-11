@@ -1,24 +1,301 @@
 "use client";
 
+import { useSidebar } from "@/components/sidebar-context";
 import { AppSidebar } from "@/components/app-sidebar";
-import { CheckCircle2, Globe2, Pencil, Plus, Power, Trash2 } from "lucide-react";
+import {
+  CheckCircle2,
+  Globe2,
+  Pencil,
+  Plus,
+  Power,
+  Trash2,
+} from "lucide-react";
 import { FormEvent, useEffect, useState } from "react";
 
 type Site = { id: string; name: string };
-type Hostname = { id: string; hostname: string; display_name: string; site_id: string | null; is_canonical: boolean; is_active: boolean; sites: { name: string } | { name: string }[] | null };
+type Hostname = {
+  id: string;
+  hostname: string;
+  display_name: string;
+  site_id: string | null;
+  is_canonical: boolean;
+  is_active: boolean;
+  sites: { name: string } | { name: string }[] | null;
+};
 
 export default function CmsDomainsPage() {
+  const { collapsed } = useSidebar();
   const [hostnames, setHostnames] = useState<Hostname[]>([]);
   const [sites, setSites] = useState<Site[]>([]);
   const [message, setMessage] = useState("");
-  async function loadHostnames() { const response = await fetch("/api/cms/hostnames"); const body = await response.json().catch(() => null); if (response.ok) setHostnames(body?.data ?? []); else setMessage(body?.error ?? "Domain CMS gagal dimuat."); }
-  useEffect(() => { const timer = setTimeout(() => { void fetch("/api/cms/sites").then((response) => response.json()).then((body) => setSites(body.data ?? [])); void loadHostnames(); }, 0); return () => clearTimeout(timer); }, []);
-  async function createHostname(event: FormEvent<HTMLFormElement>) { event.preventDefault(); const formElement = event.currentTarget; const form = new FormData(formElement); const response = await fetch("/api/cms/hostnames", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ hostname: form.get("hostname"), displayName: form.get("displayName"), siteId: form.get("siteId") || null }) }); const body = await response.json().catch(() => null); if (!response.ok) { setMessage(body?.error ?? "Domain CMS gagal ditambahkan."); return; } formElement.reset(); setMessage("Domain CMS ditambahkan. Arahkan hostname tunnel ke container CMS yang sama."); void loadHostnames(); }
-  async function toggleHostname(hostname: Hostname) { const response = await fetch(`/api/cms/hostnames/${hostname.id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ isActive: !hostname.is_active }) }); const body = await response.json().catch(() => null); setMessage(response.ok ? `Domain ${hostname.is_active ? "dinonaktifkan" : "diaktifkan"}.` : body?.error ?? "Status domain gagal diubah."); if (response.ok) void loadHostnames(); }
-  async function editHostname(hostname: Hostname) { const nextHostname = prompt("Hostname alias", hostname.hostname); if (nextHostname === null) return; const nextName = prompt("Nama tampilan", hostname.display_name); if (nextName === null) return; const nextSiteId = prompt("Website default ID (kosongkan untuk tanpa website)", hostname.site_id ?? ""); if (nextSiteId === null) return; const response = await fetch(`/api/cms/hostnames/${hostname.id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ hostname: nextHostname, displayName: nextName, siteId: nextSiteId || null }) }); const body = await response.json().catch(() => null); setMessage(response.ok ? "Domain CMS diperbarui." : body?.error ?? "Domain CMS gagal diperbarui."); if (response.ok) void loadHostnames(); }
-  async function removeHostname(hostname: Hostname) { if (!confirm(`Hapus ${hostname.hostname}? Tunnel harus dihapus terpisah.`)) return; const response = await fetch(`/api/cms/hostnames/${hostname.id}`, { method: "DELETE" }); const body = await response.json().catch(() => null); setMessage(response.ok ? "Domain CMS dihapus dari konfigurasi aplikasi." : body?.error ?? "Domain CMS gagal dihapus."); if (response.ok) void loadHostnames(); }
-  return <main className="min-h-screen bg-[#f5f7fb] p-3 sm:p-5 lg:p-7"><div className="mx-auto grid max-w-[1800px] gap-5 lg:grid-cols-[240px_minmax(0,1fr)]"><AppSidebar/><section className="min-w-0"><header className="rounded-3xl border border-slate-200/80 bg-white px-5 py-6 shadow-sm sm:px-7"><p className="text-sm font-semibold text-violet-600">Infrastruktur</p><h1 className="mt-1 text-2xl font-bold tracking-tight text-slate-950 sm:text-3xl">CMS domains</h1><p className="mt-2 max-w-3xl text-sm leading-6 text-slate-500">Satu container CMS menerima domain canonical dan alias tenant. Alias tidak membatasi role pengguna.</p></header><div className="mt-5 grid gap-5 xl:grid-cols-[minmax(0,1fr)_360px]"><section className="overflow-hidden rounded-3xl border border-slate-200/80 bg-white shadow-sm"><div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 px-5 py-4 sm:px-6"><div><h2 className="font-semibold text-slate-900">Hostname terhubung</h2><p className="mt-1 text-sm text-slate-500">DNS dan tunnel tetap diatur terpisah.</p></div><span className="rounded-full bg-violet-50 px-3 py-1.5 text-xs font-semibold text-violet-700">{hostnames.length} domain</span></div><div className="divide-y divide-slate-100">{hostnames.map((hostname) => { const site = Array.isArray(hostname.sites) ? hostname.sites[0] : hostname.sites; return <article key={hostname.id} className="flex flex-wrap items-start gap-3 px-5 py-5 sm:flex-nowrap sm:px-6"><span className="rounded-2xl bg-violet-50 p-3 text-violet-600"><Globe2 size={20}/></span><div className="min-w-0 flex-1"><div className="flex flex-wrap items-center gap-2"><p className="font-semibold text-slate-900">{hostname.display_name}</p>{hostname.is_canonical && <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-semibold text-emerald-700"><CheckCircle2 size={13}/> Canonical</span>}</div><p className="mt-1 break-all font-mono text-sm text-slate-600">{hostname.hostname}</p><p className="mt-2 text-xs text-slate-500">{hostname.is_canonical ? "Domain utama aplikasi" : `Website default: ${site?.name ?? "Tidak ada"}`}</p></div>{!hostname.is_canonical && <><span className={`rounded-full px-2 py-1 text-xs ${hostname.is_active ? "bg-emerald-50 text-emerald-700" : "bg-slate-100 text-slate-500"}`}>{hostname.is_active ? "Aktif" : "Nonaktif"}</span><button type="button" onClick={() => editHostname(hostname)} className="inline-flex size-11 items-center justify-center rounded-xl border border-slate-200 text-slate-500" title="Edit domain"><Pencil size={18}/></button><button type="button" onClick={() => toggleHostname(hostname)} className="inline-flex size-11 items-center justify-center rounded-xl border border-slate-200 text-slate-500" title={hostname.is_active ? "Nonaktifkan" : "Aktifkan"}><Power size={18}/></button><button type="button" onClick={() => removeHostname(hostname)} className="inline-flex size-11 items-center justify-center rounded-xl border border-slate-200 text-slate-500 transition hover:border-red-200 hover:bg-red-50 hover:text-red-600" title="Hapus domain" aria-label={`Hapus ${hostname.hostname}`}><Trash2 size={18}/></button></>}</article>; })}{!hostnames.length && <div className="px-5 py-14 text-center sm:px-6"><Globe2 className="mx-auto text-slate-300" size={28}/><p className="mt-3 text-sm font-medium text-slate-700">Belum ada hostname</p><p className="mt-1 text-sm text-slate-500">Tambahkan alias saat domain siap diarahkan ke CMS.</p></div>}</div></section><form onSubmit={createHostname} className="h-fit rounded-3xl border border-slate-200/80 bg-white p-5 shadow-sm sm:p-6"><h2 className="font-semibold text-slate-900">Tambah alias CMS</h2><p className="mt-1 text-sm leading-6 text-slate-500">Simpan alias dulu, lalu arahkan DNS atau tunnel ke container sama.</p><label className="mt-5 block text-sm font-medium text-slate-700">Hostname<input required name="hostname" placeholder="cms.uteroindonesia.com" className="mt-1.5 min-h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm outline-none transition focus:border-violet-500 focus:ring-4 focus:ring-violet-100"/></label><label className="mt-4 block text-sm font-medium text-slate-700">Nama tampilan<input required name="displayName" placeholder="Utero Indonesia CMS" className="mt-1.5 min-h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm outline-none transition focus:border-violet-500 focus:ring-4 focus:ring-violet-100"/></label><label className="mt-4 block text-sm font-medium text-slate-700">Website default<select name="siteId" className="mt-1.5 min-h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm outline-none transition focus:border-violet-500 focus:ring-4 focus:ring-violet-100"><option value="">Tanpa website default</option>{sites.map((site) => <option key={site.id} value={site.id}>{site.name}</option>)}</select></label><button className="mt-5 inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-xl bg-violet-600 px-4 text-sm font-semibold text-white transition hover:bg-violet-700 focus:outline-none focus:ring-4 focus:ring-violet-200"><Plus size={18}/> Tambah alias</button></form></div>{message && <p className="mt-5 rounded-2xl border border-violet-100 bg-violet-50 px-4 py-3 text-sm text-violet-800">{message}</p>}</section></div></main>;
+  async function loadHostnames() {
+    const response = await fetch("/api/cms/hostnames");
+    const body = await response.json().catch(() => null);
+    if (response.ok) setHostnames(body?.data ?? []);
+    else setMessage(body?.error ?? "Domain CMS gagal dimuat.");
+  }
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      void fetch("/api/cms/sites")
+        .then((response) => response.json())
+        .then((body) => setSites(body.data ?? []));
+      void loadHostnames();
+    }, 0);
+    return () => clearTimeout(timer);
+  }, []);
+  async function createHostname(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const formElement = event.currentTarget;
+    const form = new FormData(formElement);
+    const response = await fetch("/api/cms/hostnames", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        hostname: form.get("hostname"),
+        displayName: form.get("displayName"),
+        siteId: form.get("siteId") || null,
+      }),
+    });
+    const body = await response.json().catch(() => null);
+    if (!response.ok) {
+      setMessage(body?.error ?? "Domain CMS gagal ditambahkan.");
+      return;
+    }
+    formElement.reset();
+    setMessage(
+      "Domain CMS ditambahkan. Arahkan hostname tunnel ke container CMS yang sama.",
+    );
+    void loadHostnames();
+  }
+  async function toggleHostname(hostname: Hostname) {
+    const response = await fetch(`/api/cms/hostnames/${hostname.id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ isActive: !hostname.is_active }),
+    });
+    const body = await response.json().catch(() => null);
+    setMessage(
+      response.ok
+        ? `Domain ${hostname.is_active ? "dinonaktifkan" : "diaktifkan"}.`
+        : (body?.error ?? "Status domain gagal diubah."),
+    );
+    if (response.ok) void loadHostnames();
+  }
+  async function editHostname(hostname: Hostname) {
+    const nextHostname = prompt("Hostname alias", hostname.hostname);
+    if (nextHostname === null) return;
+    const nextName = prompt("Nama tampilan", hostname.display_name);
+    if (nextName === null) return;
+    const nextSiteId = prompt(
+      "Website default ID (kosongkan untuk tanpa website)",
+      hostname.site_id ?? "",
+    );
+    if (nextSiteId === null) return;
+    const response = await fetch(`/api/cms/hostnames/${hostname.id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        hostname: nextHostname,
+        displayName: nextName,
+        siteId: nextSiteId || null,
+      }),
+    });
+    const body = await response.json().catch(() => null);
+    setMessage(
+      response.ok
+        ? "Domain CMS diperbarui."
+        : (body?.error ?? "Domain CMS gagal diperbarui."),
+    );
+    if (response.ok) void loadHostnames();
+  }
+  async function removeHostname(hostname: Hostname) {
+    if (!confirm(`Hapus ${hostname.hostname}? Tunnel harus dihapus terpisah.`))
+      return;
+    const response = await fetch(`/api/cms/hostnames/${hostname.id}`, {
+      method: "DELETE",
+    });
+    const body = await response.json().catch(() => null);
+    setMessage(
+      response.ok
+        ? "Domain CMS dihapus dari konfigurasi aplikasi."
+        : (body?.error ?? "Domain CMS gagal dihapus."),
+    );
+    if (response.ok) void loadHostnames();
+  }
+  return (
+    <main className="min-h-screen bg-[#f5f7fb] p-3 sm:p-5 lg:p-7">
+      <div
+        className={`mx-auto grid max-w-[1800px] gap-5 ${collapsed ? "lg:grid-cols-[76px_minmax(0,1fr)]" : "lg:grid-cols-[240px_minmax(0,1fr)]"}`}
+      >
+        <AppSidebar />
+        <section className="min-w-0">
+          <header className="rounded-3xl border border-slate-200/80 bg-white px-5 py-6 shadow-sm sm:px-7">
+            <p className="text-sm font-semibold text-[#CE181E]">
+              Infrastruktur
+            </p>
+            <h1 className="mt-1 text-2xl font-bold tracking-tight text-slate-950 sm:text-3xl">
+              CMS domains
+            </h1>
+            <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-500">
+              Satu container CMS menerima domain canonical dan alias tenant.
+              Alias tidak membatasi role pengguna.
+            </p>
+          </header>
+          <div className="mt-5 grid gap-5 xl:grid-cols-[minmax(0,1fr)_360px]">
+            <section className="overflow-hidden rounded-3xl border border-slate-200/80 bg-white shadow-sm">
+              <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 px-5 py-4 sm:px-6">
+                <div>
+                  <h2 className="font-semibold text-slate-900">
+                    Hostname terhubung
+                  </h2>
+                  <p className="mt-1 text-sm text-slate-500">
+                    DNS dan tunnel tetap diatur terpisah.
+                  </p>
+                </div>
+                <span className="rounded-full bg-red-50 px-3 py-1.5 text-xs font-semibold text-[#B01519]">
+                  {hostnames.length} domain
+                </span>
+              </div>
+              <div className="divide-y divide-slate-100">
+                {hostnames.map((hostname) => {
+                  const site = Array.isArray(hostname.sites)
+                    ? hostname.sites[0]
+                    : hostname.sites;
+                  return (
+                    <article
+                      key={hostname.id}
+                      className="flex flex-wrap items-start gap-3 px-5 py-5 sm:flex-nowrap sm:px-6"
+                    >
+                      <span className="rounded-2xl bg-red-50 p-3 text-[#CE181E]">
+                        <Globe2 size={20} />
+                      </span>
+                      <div className="min-w-0 flex-1">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <p className="font-semibold text-slate-900">
+                            {hostname.display_name}
+                          </p>
+                          {hostname.is_canonical && (
+                            <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-semibold text-emerald-700">
+                              <CheckCircle2 size={13} /> Canonical
+                            </span>
+                          )}
+                        </div>
+                        <p className="mt-1 break-all font-mono text-sm text-slate-600">
+                          {hostname.hostname}
+                        </p>
+                        <p className="mt-2 text-xs text-slate-500">
+                          {hostname.is_canonical
+                            ? "Domain utama aplikasi"
+                            : `Website default: ${site?.name ?? "Tidak ada"}`}
+                        </p>
+                      </div>
+                      {!hostname.is_canonical && (
+                        <>
+                          <span
+                            className={`rounded-full px-2 py-1 text-xs ${hostname.is_active ? "bg-emerald-50 text-emerald-700" : "bg-slate-100 text-slate-500"}`}
+                          >
+                            {hostname.is_active ? "Aktif" : "Nonaktif"}
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() => editHostname(hostname)}
+                            className="inline-flex size-11 items-center justify-center rounded-xl border border-slate-200 text-slate-500"
+                            title="Edit domain"
+                          >
+                            <Pencil size={18} />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => toggleHostname(hostname)}
+                            className="inline-flex size-11 items-center justify-center rounded-xl border border-slate-200 text-slate-500"
+                            title={
+                              hostname.is_active ? "Nonaktifkan" : "Aktifkan"
+                            }
+                          >
+                            <Power size={18} />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => removeHostname(hostname)}
+                            className="inline-flex size-11 items-center justify-center rounded-xl border border-slate-200 text-slate-500 transition hover:border-red-200 hover:bg-red-50 hover:text-red-600"
+                            title="Hapus domain"
+                            aria-label={`Hapus ${hostname.hostname}`}
+                          >
+                            <Trash2 size={18} />
+                          </button>
+                        </>
+                      )}
+                    </article>
+                  );
+                })}
+                {!hostnames.length && (
+                  <div className="px-5 py-14 text-center sm:px-6">
+                    <Globe2 className="mx-auto text-slate-300" size={28} />
+                    <p className="mt-3 text-sm font-medium text-slate-700">
+                      Belum ada hostname
+                    </p>
+                    <p className="mt-1 text-sm text-slate-500">
+                      Tambahkan alias saat domain siap diarahkan ke CMS.
+                    </p>
+                  </div>
+                )}
+              </div>
+            </section>
+            <form
+              onSubmit={createHostname}
+              className="h-fit rounded-3xl border border-slate-200/80 bg-white p-5 shadow-sm sm:p-6"
+            >
+              <h2 className="font-semibold text-slate-900">Tambah alias CMS</h2>
+              <p className="mt-1 text-sm leading-6 text-slate-500">
+                Simpan alias dulu, lalu arahkan DNS atau tunnel ke container
+                sama.
+              </p>
+              <label className="mt-5 block text-sm font-medium text-slate-700">
+                Hostname
+                <input
+                  required
+                  name="hostname"
+                  placeholder="cms.uteroindonesia.com"
+                  className="mt-1.5 min-h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm outline-none transition focus:border-[#CE181E] focus:ring-4 focus:ring-red-100"
+                />
+              </label>
+              <label className="mt-4 block text-sm font-medium text-slate-700">
+                Nama tampilan
+                <input
+                  required
+                  name="displayName"
+                  placeholder="Utero Indonesia CMS"
+                  className="mt-1.5 min-h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm outline-none transition focus:border-[#CE181E] focus:ring-4 focus:ring-red-100"
+                />
+              </label>
+              <label className="mt-4 block text-sm font-medium text-slate-700">
+                Website default
+                <select
+                  name="siteId"
+                  className="mt-1.5 min-h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm outline-none transition focus:border-[#CE181E] focus:ring-4 focus:ring-red-100"
+                >
+                  <option value="">Tanpa website default</option>
+                  {sites.map((site) => (
+                    <option key={site.id} value={site.id}>
+                      {site.name}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <button className="mt-5 inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-xl bg-[#CE181E] px-4 text-sm font-semibold text-white transition hover:bg-[#B01519] focus:outline-none focus:ring-4 focus:ring-red-200">
+                <Plus size={18} /> Tambah alias
+              </button>
+            </form>
+          </div>
+          {message && (
+            <p className="mt-5 rounded-2xl border border-red-100 bg-red-50 px-4 py-3 text-sm text-red-800">
+              {message}
+            </p>
+          )}
+        </section>
+      </div>
+    </main>
+  );
 }
-
 
 

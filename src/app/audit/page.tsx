@@ -1,13 +1,178 @@
 "use client";
+import { useSidebar } from "@/components/sidebar-context";
 import { AppSidebar } from "@/components/app-sidebar";
 import { History, UserRound } from "lucide-react";
 import { useEffect, useState } from "react";
 type Site = { id: string; name: string };
-type AuditLog = { id: string; actor_id: string | null; action: string; entity_type: string; entity_id: string | null; metadata: { changed_fields?: string[] }; created_at: string; sites: { name: string } | { name: string }[] | null };
+type AuditLog = {
+  id: string;
+  actor_id: string | null;
+  action: string;
+  entity_type: string;
+  entity_id: string | null;
+  metadata: { changed_fields?: string[] };
+  created_at: string;
+  sites: { name: string } | { name: string }[] | null;
+};
 export default function AuditPage() {
-  const [sites, setSites] = useState<Site[]>([]); const [logs, setLogs] = useState<AuditLog[]>([]); const [siteId, setSiteId] = useState(""); const [message, setMessage] = useState("");
-  async function loadLogs(nextSiteId = siteId) { const query = nextSiteId ? `?siteId=${nextSiteId}` : ""; const response = await fetch(`/api/cms/audit-logs${query}`); const body = await response.json().catch(() => null); if (response.ok) setLogs(body?.data ?? []); else setMessage(body?.error ?? "Audit log gagal dimuat."); }
-  useEffect(() => { const timer = setTimeout(() => { void fetch("/api/cms/sites").then((response) => response.json()).then((body) => setSites(body.data ?? [])); void fetch("/api/cms/audit-logs").then(async (response) => { const body = await response.json().catch(() => null); if (response.ok) setLogs(body?.data ?? []); else setMessage(body?.error ?? "Audit log gagal dimuat."); }); }, 0); return () => clearTimeout(timer); }, []);
-  function filter(nextSiteId: string) { setSiteId(nextSiteId); void loadLogs(nextSiteId); }
-  return <main className="min-h-screen bg-[#f5f7fb] p-3 sm:p-5 lg:p-7"><div className="mx-auto grid max-w-[1800px] gap-5 lg:grid-cols-[240px_minmax(0,1fr)]"><AppSidebar/><section className="min-w-0"><header className="rounded-3xl border border-slate-200/80 bg-white px-5 py-6 shadow-sm sm:px-7"><p className="text-sm font-semibold text-violet-600">Keamanan</p><h1 className="mt-1 text-2xl font-bold tracking-tight text-slate-950 sm:text-3xl">Audit log</h1><p className="mt-2 text-sm leading-6 text-slate-500">Riwayat perubahan data dan tindakan pengguna berdasarkan akses RLS.</p></header><section className="mt-5 overflow-hidden rounded-3xl border border-slate-200/80 bg-white shadow-sm"><div className="flex flex-col gap-3 border-b border-slate-100 px-5 py-4 sm:flex-row sm:items-end sm:justify-between sm:px-6"><div><h2 className="font-semibold text-slate-900">Riwayat aktivitas</h2><p className="mt-1 text-sm text-slate-500">{logs.length} aktivitas ditampilkan.</p></div><label className="block text-sm font-medium text-slate-700">Filter website<select value={siteId} onChange={(event) => filter(event.target.value)} className="mt-1.5 min-h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm outline-none focus:border-violet-500 focus:ring-4 focus:ring-violet-100 sm:w-64"><option value="">Semua website</option>{sites.map((site) => <option key={site.id} value={site.id}>{site.name}</option>)}</select></label></div><div className="divide-y divide-slate-100">{logs.map((log) => { const site = Array.isArray(log.sites) ? log.sites[0] : log.sites; return <article key={log.id} className="p-5 sm:p-6"><div className="flex gap-3"><span className="h-fit rounded-2xl bg-violet-50 p-3 text-violet-600"><History size={19}/></span><div className="min-w-0 flex-1"><div className="flex flex-wrap items-center gap-2"><p className="font-semibold text-slate-900">{log.action}</p><span className="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-medium text-slate-600">{site?.name ?? "Global"}</span></div><dl className="mt-3 grid gap-3 text-sm sm:grid-cols-3"><div><dt className="text-xs font-semibold uppercase tracking-wide text-slate-400">Entitas</dt><dd className="mt-1 text-slate-700">{log.entity_type}</dd></div><div><dt className="text-xs font-semibold uppercase tracking-wide text-slate-400">ID entitas</dt><dd className="mt-1 break-all font-mono text-xs text-slate-600">{log.entity_id ?? "-"}</dd></div><div><dt className="text-xs font-semibold uppercase tracking-wide text-slate-400">Waktu</dt><dd className="mt-1 text-slate-700">{new Date(log.created_at).toLocaleString("id-ID")}</dd></div></dl><div className="mt-3 flex min-w-0 items-start gap-2 text-sm text-slate-500"><UserRound className="mt-0.5 shrink-0" size={15}/><span className="break-all">{log.actor_id ?? "system"}</span></div>{log.metadata?.changed_fields?.length ? <p className="mt-3 text-xs text-slate-500">Field diubah: <span className="font-medium text-slate-700">{log.metadata.changed_fields.join(", ")}</span></p> : null}</div></div></article>; })}{!logs.length && <div className="py-14 text-center"><History className="mx-auto text-slate-300" size={30}/><p className="mt-3 text-sm font-medium text-slate-700">Belum ada audit log</p><p className="mt-1 text-sm text-slate-500">Aktivitas baru akan tampil di sini.</p></div>}</div></section>{message && <p className="mt-5 rounded-2xl border border-red-100 bg-red-50 px-4 py-3 text-sm text-red-800">{message}</p>}</section></div></main>;
+  const { collapsed } = useSidebar();
+  const [sites, setSites] = useState<Site[]>([]);
+  const [logs, setLogs] = useState<AuditLog[]>([]);
+  const [siteId, setSiteId] = useState("");
+  const [message, setMessage] = useState("");
+  async function loadLogs(nextSiteId = siteId) {
+    const query = nextSiteId ? `?siteId=${nextSiteId}` : "";
+    const response = await fetch(`/api/cms/audit-logs${query}`);
+    const body = await response.json().catch(() => null);
+    if (response.ok) setLogs(body?.data ?? []);
+    else setMessage(body?.error ?? "Audit log gagal dimuat.");
+  }
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      void fetch("/api/cms/sites")
+        .then((response) => response.json())
+        .then((body) => setSites(body.data ?? []));
+      void fetch("/api/cms/audit-logs").then(async (response) => {
+        const body = await response.json().catch(() => null);
+        if (response.ok) setLogs(body?.data ?? []);
+        else setMessage(body?.error ?? "Audit log gagal dimuat.");
+      });
+    }, 0);
+    return () => clearTimeout(timer);
+  }, []);
+  function filter(nextSiteId: string) {
+    setSiteId(nextSiteId);
+    void loadLogs(nextSiteId);
+  }
+  return (
+    <main className="min-h-screen bg-[#f5f7fb] p-3 sm:p-5 lg:p-7">
+      <div
+        className={`mx-auto grid max-w-[1800px] gap-5 ${collapsed ? "lg:grid-cols-[76px_minmax(0,1fr)]" : "lg:grid-cols-[240px_minmax(0,1fr)]"}`}
+      >
+        <AppSidebar />
+        <section className="min-w-0">
+          <header className="rounded-3xl border border-slate-200/80 bg-white px-5 py-6 shadow-sm sm:px-7">
+            <p className="text-sm font-semibold text-[#CE181E]">Keamanan</p>
+            <h1 className="mt-1 text-2xl font-bold tracking-tight text-slate-950 sm:text-3xl">
+              Audit log
+            </h1>
+            <p className="mt-2 text-sm leading-6 text-slate-500">
+              Riwayat perubahan data dan tindakan pengguna berdasarkan akses
+              RLS.
+            </p>
+          </header>
+          <section className="mt-5 overflow-hidden rounded-3xl border border-slate-200/80 bg-white shadow-sm">
+            <div className="flex flex-col gap-3 border-b border-slate-100 px-5 py-4 sm:flex-row sm:items-end sm:justify-between sm:px-6">
+              <div>
+                <h2 className="font-semibold text-slate-900">
+                  Riwayat aktivitas
+                </h2>
+                <p className="mt-1 text-sm text-slate-500">
+                  {logs.length} aktivitas ditampilkan.
+                </p>
+              </div>
+              <label className="block text-sm font-medium text-slate-700">
+                Filter website
+                <select
+                  value={siteId}
+                  onChange={(event) => filter(event.target.value)}
+                  className="mt-1.5 min-h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm outline-none focus:border-[#CE181E] focus:ring-4 focus:ring-red-100 sm:w-64"
+                >
+                  <option value="">Semua website</option>
+                  {sites.map((site) => (
+                    <option key={site.id} value={site.id}>
+                      {site.name}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            </div>
+            <div className="divide-y divide-slate-100">
+              {logs.map((log) => {
+                const site = Array.isArray(log.sites)
+                  ? log.sites[0]
+                  : log.sites;
+                return (
+                  <article key={log.id} className="p-5 sm:p-6">
+                    <div className="flex gap-3">
+                      <span className="h-fit rounded-2xl bg-red-50 p-3 text-[#CE181E]">
+                        <History size={19} />
+                      </span>
+                      <div className="min-w-0 flex-1">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <p className="font-semibold text-slate-900">
+                            {log.action}
+                          </p>
+                          <span className="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-medium text-slate-600">
+                            {site?.name ?? "Global"}
+                          </span>
+                        </div>
+                        <dl className="mt-3 grid gap-3 text-sm sm:grid-cols-3">
+                          <div>
+                            <dt className="text-xs font-semibold uppercase tracking-wide text-slate-400">
+                              Entitas
+                            </dt>
+                            <dd className="mt-1 text-slate-700">
+                              {log.entity_type}
+                            </dd>
+                          </div>
+                          <div>
+                            <dt className="text-xs font-semibold uppercase tracking-wide text-slate-400">
+                              ID entitas
+                            </dt>
+                            <dd className="mt-1 break-all font-mono text-xs text-slate-600">
+                              {log.entity_id ?? "-"}
+                            </dd>
+                          </div>
+                          <div>
+                            <dt className="text-xs font-semibold uppercase tracking-wide text-slate-400">
+                              Waktu
+                            </dt>
+                            <dd className="mt-1 text-slate-700">
+                              {new Date(log.created_at).toLocaleString("id-ID")}
+                            </dd>
+                          </div>
+                        </dl>
+                        <div className="mt-3 flex min-w-0 items-start gap-2 text-sm text-slate-500">
+                          <UserRound className="mt-0.5 shrink-0" size={15} />
+                          <span className="break-all">
+                            {log.actor_id ?? "system"}
+                          </span>
+                        </div>
+                        {log.metadata?.changed_fields?.length ? (
+                          <p className="mt-3 text-xs text-slate-500">
+                            Field diubah:{" "}
+                            <span className="font-medium text-slate-700">
+                              {log.metadata.changed_fields.join(", ")}
+                            </span>
+                          </p>
+                        ) : null}
+                      </div>
+                    </div>
+                  </article>
+                );
+              })}
+              {!logs.length && (
+                <div className="py-14 text-center">
+                  <History className="mx-auto text-slate-300" size={30} />
+                  <p className="mt-3 text-sm font-medium text-slate-700">
+                    Belum ada audit log
+                  </p>
+                  <p className="mt-1 text-sm text-slate-500">
+                    Aktivitas baru akan tampil di sini.
+                  </p>
+                </div>
+              )}
+            </div>
+          </section>
+          {message && (
+            <p className="mt-5 rounded-2xl border border-red-100 bg-red-50 px-4 py-3 text-sm text-red-800">
+              {message}
+            </p>
+          )}
+        </section>
+      </div>
+    </main>
+  );
 }
+

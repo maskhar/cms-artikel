@@ -1,6 +1,6 @@
 "use client";
 
-import { useSidebar } from "@/components/sidebar-context";
+import { SidebarProvider, useSidebar } from "@/components/sidebar-context";
 import { AppSidebar } from "@/components/app-sidebar";
 import { BookOpenText, Code2, Container, ShieldCheck, Zap } from "lucide-react";
 
@@ -21,19 +21,19 @@ const automationEndpoint = [
   [
     "Upsert artikel",
     "POST /functions/v1/automation-api",
-    "Create atau update artikel dari sistem eksternal. Wajib: external_id, title, content.",
+    "Create atau update artikel dari sistem eksternal. Wajib: external_id, title, slug, content, category_name.",
   ],
 ] as const;
 
 const examples = {
   publicNext: `const response = await fetch(\n  \`\${process.env.ARTIKEL_API_URL}/api/v1/articles?category=teknologi&page=1&limit=10\`,\n  {\n    headers: { "x-artikel-key": process.env.ARTIKEL_API_KEY! },\n    next: { revalidate: 60 },\n  },\n);\nconst { data, meta } = await response.json();`,
-  automationNext: `const response = await fetch(\n  'https://supabase.maskhar.net/functions/v1/automation-api',\n  {\n    method: 'POST',\n    headers: {\n      'x-api-key': process.env.AUTOMATION_API_KEY!,\n      'Content-Type': 'application/json',\n    },\n    body: JSON.stringify({\n      external_id: 'wp-12345',\n      title: 'Judul Artikel',\n      content: '<p>Konten artikel</p>',\n      excerpt: 'Ringkasan',\n      tags: ['tech', 'news'],\n      status: 'draft',\n    }),\n  }\n);\nconst result = await response.json();`,
+  automationNext: `const response = await fetch(\n  'https://supabase.carubra.com/functions/v1/automation-api',\n  {\n    method: 'POST',\n    headers: {\n      'x-api-key': process.env.AUTOMATION_API_KEY!,\n      'Content-Type': 'application/json',\n    },\n    body: JSON.stringify({\n      external_id: 'wp-12345',\n      title: 'Judul Artikel',\n      slug: 'judul-artikel',\n      content: '<p>Konten artikel</p>',\n      excerpt: 'Ringkasan',\n      category_name: 'Teknologi',\n      tags: ['tech', 'news'],\n      status: 'draft',\n    }),\n  }\n);\nconst result = await response.json();`,
   vite: `// Browser hanya memanggil backend milik aplikasi.\n// Simpan ARTIKEL_API_KEY pada backend/serverless function.\nconst response = await fetch("/api/articles?category=teknologi");\nconst { data } = await response.json();`,
   laravel: `$response = Http::withHeaders([\n    'x-artikel-key' => config('services.artikel.key'),\n])->get(config('services.artikel.url') . '/api/v1/articles', [\n    'category' => 'teknologi', 'page' => 1, 'limit' => 10,\n]);\n$articles = $response->throw()->json('data');`,
   php: `$ch = curl_init('https://cms.carubra.com/api/v1/articles?category=teknologi&page=1&limit=10');\ncurl_setopt_array($ch, [\n    CURLOPT_RETURNTRANSFER => true,\n    CURLOPT_HTTPHEADER => ['x-artikel-key: ' . getenv('ARTIKEL_API_KEY')],\n]);\n$body = json_decode(curl_exec($ch), true);`,
   wordpress: `$response = wp_remote_get(ARTIKEL_API_URL . '/api/v1/articles?category=teknologi&page=1&limit=10', [\n    'headers' => ['x-artikel-key' => ARTIKEL_API_KEY],\n    'timeout' => 10,\n]);\n$articles = is_wp_error($response) ? [] :\n    (json_decode(wp_remote_retrieve_body($response), true)['data'] ?? []);`,
-  wordpressAutomation: `function push_to_artikel_cms($post_id) {\n    $post = get_post($post_id);\n    \n    $payload = [\n        'external_id' => 'wp-' . $post_id,\n        'title' => $post->post_title,\n        'content' => $post->post_content,\n        'excerpt' => $post->post_excerpt,\n        'status' => $post->post_status === 'publish' ? 'published' : 'draft',\n        'tags' => wp_get_post_tags($post_id, ['fields' => 'names']),\n    ];\n    \n    $response = wp_remote_post(\n        'https://supabase.maskhar.net/functions/v1/automation-api',\n        [\n            'headers' => [\n                'x-api-key' => ARTIKEL_AUTOMATION_KEY,\n                'Content-Type' => 'application/json',\n            ],\n            'body' => json_encode($payload),\n            'timeout' => 30,\n        ]\n    );\n    \n    return !is_wp_error($response);\n}\n\nadd_action('save_post', 'push_to_artikel_cms');`,
-  python: `import requests\nimport os\n\ndef push_to_artikel_cms(article):\n    payload = {\n        'external_id': article['external_id'],\n        'title': article['title'],\n        'content': article['content'],\n        'tags': article.get('tags', []),\n        'status': 'draft',\n    }\n    \n    response = requests.post(\n        'https://supabase.maskhar.net/functions/v1/automation-api',\n        headers={\n            'x-api-key': os.getenv('AUTOMATION_API_KEY'),\n            'Content-Type': 'application/json',\n        },\n        json=payload,\n        timeout=30\n    )\n    \n    response.raise_for_status()\n    return response.json()`,
+  wordpressAutomation: `function push_to_artikel_cms($post_id) {\n    $post = get_post($post_id);\n    \n    $payload = [\n        'external_id' => 'wp-' . $post_id,\n        'title' => $post->post_title,\n        'slug' => $post->post_name,\n        'content' => $post->post_content,\n        'excerpt' => $post->post_excerpt,\n        'category_name' => 'Umum',\n        'status' => $post->post_status === 'publish' ? 'published' : 'draft',\n        'tags' => wp_get_post_tags($post_id, ['fields' => 'names']),\n    ];\n    \n    $response = wp_remote_post(\n        'https://supabase.carubra.com/functions/v1/automation-api',\n        [\n            'headers' => [\n                'x-api-key' => ARTIKEL_AUTOMATION_KEY,\n                'Content-Type' => 'application/json',\n            ],\n            'body' => json_encode($payload),\n            'timeout' => 30,\n        ]\n    );\n    \n    return !is_wp_error($response);\n}\n\nadd_action('save_post', 'push_to_artikel_cms');`,
+  python: `import requests\nimport os\n\ndef push_to_artikel_cms(article):\n    payload = {\n        'external_id': article['external_id'],\n        'title': article['title'],\n        'slug': article['slug'],\n        'content': article['content'],\n        'category_name': article.get('category_name', 'Umum'),\n        'tags': article.get('tags', []),\n        'status': 'draft',\n    }\n    \n    response = requests.post(\n        'https://supabase.carubra.com/functions/v1/automation-api',\n        headers={\n            'x-api-key': os.getenv('AUTOMATION_API_KEY'),\n            'Content-Type': 'application/json',\n        },\n        json=payload,\n        timeout=30\n    )\n    \n    response.raise_for_status()\n    return response.json()`,
 };
 
 function CodeBlock({ children }: { children: string }) {
@@ -44,7 +44,7 @@ function CodeBlock({ children }: { children: string }) {
   );
 }
 
-export default function ApiDocsPage() {
+function ApiDocsContent() {
   const { collapsed } = useSidebar();
   return (
     <main className="min-h-screen bg-[#f5f7fb] p-3 text-slate-900 sm:p-5 lg:p-7">
@@ -64,9 +64,7 @@ export default function ApiDocsPage() {
                 </p>
                 <h1 className="mt-1 text-3xl font-bold">API Artikel</h1>
                 <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-300">
-                  Public Read API untuk konsumsi artikel, dan Automation API untuk
-                  push artikel dari sistem eksternal. Deployment, autentikasi,
-                  endpoint, error, dan contoh integrasi.
+                  Automation API menjadi endpoint utama untuk push artikel dari semua project. Public Read API terpisah dan hanya untuk membaca artikel published.
                 </p>
               </div>
             </div>
@@ -129,7 +127,7 @@ export default function ApiDocsPage() {
                   Mendukung create dan update dengan single endpoint (upsert). Base
                   URL{" "}
                   <code className="rounded bg-slate-100 px-1.5 py-1">
-                    https://supabase.maskhar.net/functions/v1
+                    https://supabase.carubra.com/functions/v1
                   </code>
                   . Header{" "}
                   <code className="rounded bg-slate-100 px-1.5 py-1">
@@ -137,7 +135,7 @@ export default function ApiDocsPage() {
                   </code>
                   .
                 </p>
-                <CodeBlock>{`curl -X POST "https://supabase.maskhar.net/functions/v1/automation-api" \\\n  -H "x-api-key: your_automation_key" \\\n  -H "Content-Type: application/json" \\\n  -d '{\n    "external_id": "wp-12345",\n    "title": "Judul Artikel",\n    "content": "<p>Konten artikel</p>",\n    "excerpt": "Ringkasan",\n    "tags": ["tech", "news"],\n    "status": "draft"\n  }'`}</CodeBlock>
+                <CodeBlock>{`curl -X POST "https://supabase.carubra.com/functions/v1/automation-api" \\\n  -H "x-api-key: your_automation_key" \\\n  -H "Content-Type: application/json" \\\n  -d '{\n    "external_id": "wp-12345",\n    "title": "Judul Artikel",\n    "slug": "judul-artikel",\n    "content": "<p>Konten artikel</p>",\n    "excerpt": "Ringkasan",\n    "category_name": "Teknologi",\n    "tags": ["tech", "news"],\n    "status": "draft"\n  }'`}</CodeBlock>
                 <div className="mt-4 space-y-3">
                   {automationEndpoint.map(([title, endpoint, note]) => (
                     <article
@@ -158,11 +156,11 @@ export default function ApiDocsPage() {
                   </p>
                   <ul className="mt-2 space-y-1 text-xs text-slate-700">
                     <li>
-                      <strong>Required:</strong> external_id, title, content
+                      <strong>Required:</strong> external_id, title, slug, content, category_name
                     </li>
                     <li>
-                      <strong>Optional:</strong> slug, excerpt, category_name,
-                      category_id, tags, featured_image_url, status, seo_title,
+                      <strong>Required:</strong> slug, category_name; optional fields: excerpt,
+                      category_id, tags, featured_image, status, seo_title,
                       meta_description, canonical_url, robots, og_image_url,
                       published_at
                     </li>
@@ -315,3 +313,12 @@ export default function ApiDocsPage() {
     </main>
   );
 }
+
+export default function ApiDocsPage() {
+  return (
+    <SidebarProvider>
+      <ApiDocsContent />
+    </SidebarProvider>
+  );
+}
+

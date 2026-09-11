@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Geist } from "next/font/google";
 import "./globals.css";
 import { SessionMonitor } from "@/components/session-monitor";
+import { SidebarProvider } from "@/components/sidebar-context";
 
 const geist = Geist({ variable: "--font-geist", subsets: ["latin"] });
 export const metadata: Metadata = {
@@ -17,4 +18,4 @@ export const metadata: Metadata = {
     apple: [{ url: "/favicon/apple-touch-icon.png", sizes: "180x180", type: "image/png" }],
   },
 };
-export default function RootLayout({ children }: LayoutProps<"/">) { return <html lang="id" className={geist.variable}><body><SessionMonitor/>{children}</body></html>; }
+export default function RootLayout({ children }: LayoutProps<"/">) { return <html lang="id" className={geist.variable}><body><SessionMonitor/><SidebarProvider>{children}</SidebarProvider></body></html>; }
