@@ -7,7 +7,8 @@ import {
   Plus,
   RefreshCw,
   ShieldCheck,
-  ShieldX,
+  Trash2,
+  X,
 } from "lucide-react";
 import { FormEvent, useEffect, useState } from "react";
 type Site = { id: string; name: string; domain: string };
@@ -24,8 +25,16 @@ export default function ApiKeysPage() {
   const { collapsed } = useSidebar();
   const [keys, setKeys] = useState<ApiKey[]>([]);
   const [sites, setSites] = useState<Site[]>([]);
-  const [newKey, setNewKey] = useState("");
+  const [revealedKey, setRevealedKey] = useState<{ id: string; value: string } | null>(null);
   const [message, setMessage] = useState("");
+  async function copyKey(value: string) {
+    try {
+      await navigator.clipboard.writeText(value);
+      setMessage("API key disalin.");
+    } catch {
+      setMessage("Clipboard tidak tersedia. Salin nilai key secara manual dari panel di atas.");
+    }
+  }
   async function loadKeys() {
     const [keyResponse, siteResponse] = await Promise.all([
       fetch("/api/cms/api-keys"),
@@ -45,7 +54,8 @@ export default function ApiKeysPage() {
   }, []);
   async function createKey(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    const form = new FormData(event.currentTarget);
+    const formElement = event.currentTarget;
+    const form = new FormData(formElement);
     const expiresAt = String(form.get("expiresAt") ?? "");
     const response = await fetch("/api/cms/api-keys", {
       method: "POST",
@@ -61,17 +71,17 @@ export default function ApiKeysPage() {
       setMessage(body?.error ?? "API key gagal dibuat.");
       return;
     }
-    setNewKey(body.data.key);
+    setRevealedKey({ id: body.data.id, value: body.data.key });
     setMessage(
       "API key dibuat. Salin sekarang; key tidak dapat ditampilkan lagi.",
     );
-    event.currentTarget.reset();
+    formElement.reset();
     void loadKeys();
   }
   async function rotate(id: string) {
     if (
       !confirm(
-        "Rotasi key ini? Key lama langsung direvoke; expiry lama dipertahankan.",
+        "Buat ulang key ini? Nilai key lama langsung tidak berlaku; data key tetap pada record yang sama.",
       )
     )
       return;
@@ -85,22 +95,26 @@ export default function ApiKeysPage() {
       setMessage(body?.error ?? "Rotasi API key gagal.");
       return;
     }
-    setNewKey(body.data.key);
-    setMessage("API key dirotasi. Salin key baru sekarang.");
+    setRevealedKey({ id: body.data.id, value: body.data.key });
+    setMessage("API key dibuat ulang. Salin nilai baru sekarang.");
     void loadKeys();
   }
-  async function revoke(id: string) {
+  async function remove(id: string) {
     if (
       !confirm(
-        "Revoke API key ini? Website yang memakainya akan kehilangan akses.",
+        "Hapus API key ini secara permanen? Website yang memakainya akan kehilangan akses.",
       )
     )
       return;
     const response = await fetch(`/api/cms/api-keys/${id}`, {
       method: "DELETE",
     });
-    setMessage(response.ok ? "API key direvoke." : "API key gagal direvoke.");
-    if (response.ok) void loadKeys();
+    const body = await response.json().catch(() => null);
+    setMessage(response.ok ? "API key dihapus." : body?.error ?? "API key gagal dihapus.");
+    if (response.ok) {
+      setRevealedKey((current) => current?.id === id ? null : current);
+      void loadKeys();
+    }
   }
   return (
     <main className="min-h-screen bg-[#f5f7fb] p-3 sm:p-5 lg:p-7">
@@ -128,7 +142,7 @@ export default function ApiKeysPage() {
               </div>
             </div>
           </header>
-          {newKey && (
+          {revealedKey && (
             <section className="mt-5 rounded-3xl border border-amber-200 bg-amber-50 p-5 sm:p-6">
               <p className="font-semibold text-amber-950">
                 Simpan key sekarang
@@ -138,11 +152,11 @@ export default function ApiKeysPage() {
               </p>
               <div className="mt-4 flex flex-col gap-2 sm:flex-row">
                 <code className="min-w-0 flex-1 overflow-x-auto rounded-xl border border-amber-200 bg-white p-3 text-sm text-slate-800">
-                  {newKey}
+                  {revealedKey.value}
                 </code>
                 <button
                   type="button"
-                  onClick={() => navigator.clipboard.writeText(newKey)}
+                  onClick={() => void copyKey(revealedKey.value)}
                   className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-slate-950 px-4 text-sm font-semibold text-white"
                 >
                   <Copy size={17} /> Salin
@@ -155,7 +169,7 @@ export default function ApiKeysPage() {
               <div className="border-b border-slate-100 px-5 py-4 sm:px-6">
                 <h2 className="font-semibold text-slate-900">Key terdaftar</h2>
                 <p className="mt-1 text-sm text-slate-500">
-                  Rotasi berkala dan revoke key yang tidak dipakai.
+                  Buat ulang berkala dan hapus key yang tidak dipakai.
                 </p>
               </div>
               <div className="divide-y divide-slate-100">
@@ -209,11 +223,26 @@ export default function ApiKeysPage() {
                           </div>
                         </dl>
                       </div>
-                      {!key.revoked_at && (
-                        <div className="flex gap-2">
+                        <div className="flex flex-wrap gap-2">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              if (revealedKey?.id === key.id) {
+                                void copyKey(revealedKey.value);
+                              } else {
+                                setMessage("Nilai penuh key lama tidak disimpan. Buat ulang key untuk mendapat nilai baru.");
+                              }
+                            }}
+                            className="inline-flex size-11 items-center justify-center rounded-xl border border-slate-200 text-slate-600 hover:border-red-200 hover:bg-red-50 hover:text-[#B01519]"
+                            title="Salin"
+                            aria-label={`Salin ${key.label}`}
+                          >
+                            <Copy size={18} />
+                          </button>
                           <button
                             type="button"
                             onClick={() => rotate(key.id)}
+                            disabled={Boolean(key.revoked_at)}
                             className="inline-flex size-11 items-center justify-center rounded-xl border border-slate-200 text-slate-600 hover:border-red-200 hover:bg-red-50 hover:text-[#B01519]"
                             title="Rotasi"
                             aria-label={`Rotasi ${key.label}`}
@@ -222,15 +251,14 @@ export default function ApiKeysPage() {
                           </button>
                           <button
                             type="button"
-                            onClick={() => revoke(key.id)}
+                            onClick={() => remove(key.id)}
                             className="inline-flex size-11 items-center justify-center rounded-xl border border-slate-200 text-slate-600 hover:border-red-200 hover:bg-red-50 hover:text-red-700"
-                            title="Revoke"
-                            aria-label={`Revoke ${key.label}`}
+                            title="Hapus"
+                            aria-label={`Hapus ${key.label}`}
                           >
-                            <ShieldX size={18} />
+                            <Trash2 size={18} />
                           </button>
                         </div>
-                      )}
                     </div>
                   </article>
                 ))}
@@ -288,9 +316,19 @@ export default function ApiKeysPage() {
             </form>
           </div>
           {message && (
-            <p className="mt-5 rounded-2xl border border-red-100 bg-red-50 px-4 py-3 text-sm text-red-800">
-              {message}
-            </p>
+            <div className="fixed inset-x-3 top-5 z-[100] mx-auto flex max-w-xl items-start gap-3 rounded-2xl border border-red-100 bg-red-50 py-3 pl-5 pr-2 text-sm text-red-800 shadow-xl sm:inset-x-5">
+              <p role="status" aria-live="polite" className="min-w-0 flex-1 py-2 leading-6">
+                {message}
+              </p>
+              <button
+                type="button"
+                onClick={() => setMessage("")}
+                aria-label="Tutup notifikasi"
+                className="inline-flex size-11 shrink-0 items-center justify-center rounded-xl hover:bg-red-100 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-red-700"
+              >
+                <X size={18} />
+              </button>
+            </div>
           )}
         </section>
       </div>

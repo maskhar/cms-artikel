@@ -19,13 +19,15 @@ export async function POST(request: Request) {
   const privileged = (siteId: string) => (roles ?? []).some((role) => role.role === "admin" && role.site_id === null || ["admin", "editor"].includes(role.role) && role.site_id === siteId);
   if (["status", "archive"].includes(action) && siteIds.some((siteId) => !privileged(siteId))) return NextResponse.json({ error: "Admin atau editor diperlukan." }, { status: 403 });
   if (action === "delete" && !(roles ?? []).some((role) => role.role === "admin" && (role.site_id === null || siteIds.includes(role.site_id)))) return NextResponse.json({ error: "Admin diperlukan untuk delete permanen." }, { status: 403 });
+  const now = new Date().toISOString();
   let query;
-  if (action === "review") query = db.from("articles").update({ status: "in_review", submitted_at: new Date().toISOString() }).in("id", ids).in("status", ["draft", "revision_requested"]);
-  else if (action === "archive") query = db.from("articles").update({ status: "archived", archived_at: new Date().toISOString() }).in("id", ids).eq("status", "published");
-  else if (action === "status" && status) query = db.from("articles").update({ status }).in("id", ids);
+  if (action === "review") query = db.from("articles").update({ status: "in_review", submitted_at: now }).in("id", ids).in("status", ["draft", "revision_requested"]);
+  else if (action === "archive") query = db.from("articles").update({ status: "archived", archived_at: now }).in("id", ids).eq("status", "published");
+  else if (action === "status" && status) query = db.from("articles").update({ status, ...(status === "published" ? { published_at: now } : {}), archived_at: status === "archived" ? now : null }).in("id", ids);
   else if (action === "delete") query = db.from("articles").delete().in("id", ids);
   else return NextResponse.json({ error: "Status tujuan wajib dipilih." }, { status: 400 });
   const { data, error } = await query.select("id");
   if (error) return NextResponse.json({ error: error.code === "23503" ? "Artikel masih memiliki data terkait yang mencegah delete." : error.message }, { status: 400 });
-  return NextResponse.json({ data: { affected: data?.length ?? 0 } });
+  if (!data?.length) return NextResponse.json({ error: "Tidak ada artikel yang berubah. Periksa izin dan status artikel terpilih." }, { status: 409 });
+  return NextResponse.json({ data: { affected: data.length } });
 }

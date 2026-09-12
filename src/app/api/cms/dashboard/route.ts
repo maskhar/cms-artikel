@@ -11,7 +11,7 @@ export async function GET() {
     db.from("articles").select("*", { count: "exact", head: true }).eq("status", "in_review"),
     db.from("articles").select("*", { count: "exact", head: true }).eq("status", "published"),
     db.from("categories").select("*", { count: "exact", head: true }).eq("is_active", true),
-    db.from("articles").select("id, title, status, updated_at, categories(name), sites(name)").order("updated_at", { ascending: false }).limit(8),
+    db.from("articles").select("id, title, status, updated_at, categories(name), sites!articles_site_id_fkey(name)").order("updated_at", { ascending: false }).limit(8),
   ]);
   const error = articles.error ?? review.error ?? published.error ?? categories.error ?? recent.error;
   if (error) return NextResponse.json({ error: error.message }, { status: 400 });

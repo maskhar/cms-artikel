@@ -12,6 +12,8 @@ import { AlignCenter, AlignLeft, AlignRight, Bold, Code2, Heading1, Heading2, Hi
 import { usePathname } from "next/navigation";
 import { ChangeEvent, DragEvent, useEffect, useRef, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
+import { registerMedia } from "@/lib/register-media";
+import { mediaStoragePath } from "@/lib/media-storage-path";
 
 type RichTextEditorProps = { value: string; onChange: (value: string) => void; siteId?: string; mediaFolder?: string; placeholder?: string };
 const imageTypes = new Set(["image/jpeg", "image/png", "image/webp", "image/gif"]);
@@ -34,7 +36,7 @@ export function RichTextEditor({ value, onChange, siteId, mediaFolder, placehold
     ],
     content: value,
     immediatelyRender: false,
-    editorProps: { attributes: { class: "tiptap min-h-[420px] px-5 py-6 text-[17px] leading-8 outline-none md:px-9 md:py-8", "data-placeholder": placeholder } },
+    editorProps: { attributes: { class: "tiptap min-h-[360px] px-4 py-5 text-base leading-7 outline-none sm:min-h-[420px] sm:px-5 sm:py-6 sm:text-[17px] sm:leading-8 md:px-9 md:py-8", "data-placeholder": placeholder } },
     onUpdate: ({ editor: currentEditor }) => onChange(currentEditor.getHTML()),
   });
 
@@ -60,12 +62,13 @@ export function RichTextEditor({ value, onChange, siteId, mediaFolder, placehold
     if (!file || !editor) return;
     if (!effectiveMedia.siteId || !effectiveMedia.folder) { setMessage("Pilih website terlebih dahulu sebelum menambah gambar."); return; }
     if (!imageTypes.has(file.type) || file.size > 5 * 1024 * 1024) { setMessage("Pakai JPG, PNG, WebP, atau GIF maksimum 5 MB."); return; }
-    const extension = file.name.split(".").pop()?.toLowerCase() || "webp";
-    const path = `${effectiveMedia.siteId}/${effectiveMedia.folder}/${crypto.randomUUID()}.${extension}`;
+    const path = mediaStoragePath(`${effectiveMedia.siteId}/${effectiveMedia.folder}`, file.name);
     setUploading(true); setMessage("");
     const storage = createClient().storage.from("artikel-media");
     const { error } = await storage.upload(path, file, { contentType: file.type, upsert: false });
     if (error) { setUploading(false); setMessage(error.message); return; }
+    const metadataError = await registerMedia(path, file);
+    if (metadataError) { await storage.remove([path]); setUploading(false); setMessage(metadataError); return; }
     const { data, error: signedError } = await storage.createSignedUrl(path, 60 * 60 * 24 * 7);
     setUploading(false);
     if (signedError || !data) { setMessage(signedError?.message ?? "Gambar tidak dapat dipakai."); return; }
@@ -73,8 +76,8 @@ export function RichTextEditor({ value, onChange, siteId, mediaFolder, placehold
   }
 
   return <div onDragOver={(event) => { if (event.dataTransfer.types.includes("application/x-artikel-addon")) event.preventDefault(); }} onDrop={dropAddon} className={`${fullscreen ? "fixed inset-3 z-[100] flex flex-col md:inset-6" : ""} overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm`}>
-    <div className="sticky top-0 z-10 border-b border-slate-200 bg-white/95 p-2 backdrop-blur">
-      <div className="flex flex-wrap items-center gap-1">
+    <div className="sticky top-0 z-10 overflow-x-auto border-b border-slate-200 bg-white/95 p-2 backdrop-blur">
+      <div className="flex min-w-max items-center gap-1 sm:min-w-0 sm:flex-wrap">
         <select aria-label="Gaya teks" defaultValue="paragraph" onChange={(event) => action(() => { const type = event.target.value; if (type === "h1") editor?.chain().focus().toggleHeading({ level: 1 }).run(); else if (type === "h2") editor?.chain().focus().toggleHeading({ level: 2 }).run(); else if (type === "h3") editor?.chain().focus().toggleHeading({ level: 3 }).run(); else editor?.chain().focus().setParagraph().run(); })} className="h-9 rounded-lg border border-slate-200 bg-white px-2 text-sm font-medium outline-none focus:ring-2 focus:ring-[#CE181E]"><option value="paragraph">Paragraf</option><option value="h1">Heading 1</option><option value="h2">Heading 2</option><option value="h3">Heading 3</option></select>
         <select aria-label="Jenis font" defaultValue="inherit" onChange={(event) => action(() => event.target.value === "inherit" ? editor?.chain().focus().unsetFontFamily().run() : editor?.chain().focus().setFontFamily(event.target.value).run())} className="h-9 max-w-28 rounded-lg border border-slate-200 bg-white px-2 text-sm outline-none focus:ring-2 focus:ring-[#CE181E]"><option value="inherit">Default</option><option value="Arial">Arial</option><option value="Georgia">Georgia</option><option value="Verdana">Verdana</option><option value="Courier New">Mono</option></select>
         <select aria-label="Ukuran teks" defaultValue="17px" onChange={(event) => action(() => event.target.value === "default" ? editor?.chain().focus().unsetFontSize().run() : editor?.chain().focus().setFontSize(event.target.value).run())} className="h-9 rounded-lg border border-slate-200 bg-white px-2 text-sm outline-none focus:ring-2 focus:ring-[#CE181E]"><option value="default">Ukuran</option><option value="14px">14</option><option value="16px">16</option><option value="17px">17</option><option value="20px">20</option><option value="24px">24</option><option value="32px">32</option></select>
@@ -92,6 +95,6 @@ export function RichTextEditor({ value, onChange, siteId, mediaFolder, placehold
       </div>
     </div>
     {htmlMode ? <textarea aria-label="HTML artikel" value={value} onChange={(event) => onChange(event.target.value)} className={`${fullscreen ? "flex-1" : "min-h-[420px]"} w-full resize-y bg-slate-950 p-5 font-mono text-sm leading-6 text-slate-100 outline-none`}/> : <div className={fullscreen ? "min-h-0 flex-1 overflow-y-auto" : ""}><EditorContent editor={editor}/></div>}{message && <p className="border-t border-amber-100 bg-amber-50 px-5 py-3 text-sm text-amber-800">{message}</p>}
-    <div className="flex items-center justify-between border-t border-slate-100 px-5 py-3 text-xs text-slate-400"><span>{uploading ? "Mengunggah gambar…" : "Pilih gambar lalu tarik sudutnya untuk mengubah ukuran."}</span><span>{editor?.storage.characterCount?.characters?.() ?? value.replace(/<[^>]+>/g, "").length} karakter</span></div>
+    <div className="flex flex-col gap-1 border-t border-slate-100 px-4 py-3 text-xs text-slate-400 sm:flex-row sm:items-center sm:justify-between sm:px-5"><span>{uploading ? "Mengunggah gambar…" : "Pilih gambar lalu tarik sudutnya untuk mengubah ukuran."}</span><span>{editor?.storage.characterCount?.characters?.() ?? value.replace(/<[^>]+>/g, "").length} karakter</span></div>
   </div>;
 }

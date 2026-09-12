@@ -178,6 +178,8 @@ export default function ArticlesPage() {
               <label className="inline-flex items-center gap-2 rounded-lg border border-red-200 bg-white px-3 py-2 text-xs font-semibold">
                 <select
                   value={bulkStatus}
+                  aria-label="Status tujuan artikel terpilih"
+                  disabled={loading}
                   onChange={(event) => setBulkStatus(event.target.value)}
                   className="bg-transparent outline-none"
                 >
@@ -193,8 +195,10 @@ export default function ArticlesPage() {
                   disabled={loading}
                   onClick={() => bulk("status")}
                   title="Terapkan status"
+                  type="button"
+                  className="inline-flex items-center gap-2 rounded bg-[#CE181E] px-3 py-2 text-white disabled:opacity-50"
                 >
-                  <CheckSquare size={15} />
+                  <CheckSquare size={15} /> Terapkan status
                 </button>
               </label>
               <button

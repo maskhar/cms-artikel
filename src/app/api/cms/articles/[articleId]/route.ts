@@ -13,6 +13,7 @@ const updateSchema = z.object({
   featuredImagePath: z.string().max(500).nullable(),
   ogImagePath: z.string().max(500).nullable(),
   tagIds: z.array(z.string().uuid()).max(30),
+  publishScope: z.enum(["selected_sites", "all_active_sites"]).optional(),
 });
 
 function allowedActions(status: string, roles: string[]) { const privileged = roles.includes("admin") || roles.includes("editor"); if (!privileged) return ["draft", "revision_requested"].includes(status) ? ["submit"] : []; if (["draft", "revision_requested"].includes(status)) return ["submit"]; if (status === "in_review") return ["request_revision", "approve"]; if (status === "approved") return ["publish", "reopen"]; if (status === "published") return ["archive", "reopen"]; if (status === "archived") return ["reopen"]; return []; }
@@ -36,7 +37,7 @@ export async function GET(_request: Request, { params }: { params: Promise<{ art
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: "Unauthenticated" }, { status: 401 });
   const id = (await params).articleId;
-  const articleResult = await supabase.schema("artikel").from("articles").select("id, site_id, category_id, title, slug, excerpt, content, featured_image_path, og_image_path, seo_title, meta_description, status, created_at, updated_at, categories(name), sites(name, slug), article_tags(tag_id, tags(id, name, slug))").eq("id", id).single();
+  const articleResult = await supabase.schema("artikel").from("articles").select("id, site_id, category_id, title, slug, excerpt, content, featured_image_path, og_image_path, seo_title, meta_description, status, created_at, updated_at, categories(name), sites!articles_site_id_fkey(name, slug), article_tags(tag_id, tags(id, name, slug))").eq("id", id).single();
   if (articleResult.error) return NextResponse.json({ error: articleResult.error.message }, { status: 404 });
   const article = articleResult.data;
   const [revisionsResult, commentsResult, rolesResult, tagsResult] = await Promise.all([
@@ -59,7 +60,11 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ ar
   const { data: existing, error: existingError } = await supabase.schema("artikel").from("articles").select("site_id").eq("id", id).single();
   if (existingError) return NextResponse.json({ error: "Artikel tidak ditemukan." }, { status: 404 });
   const input = parsed.data;
-  const { error } = await supabase.schema("artikel").from("articles").update({ title: input.title, slug: input.slug, excerpt: input.excerpt, content: input.content, seo_title: input.seoTitle, meta_description: input.metaDescription, featured_image_path: input.featuredImagePath, og_image_path: input.ogImagePath }).eq("id", id);
+  if (input.publishScope === "all_active_sites") {
+    const { data: globalAdmin } = await supabase.schema("artikel").from("user_roles").select("user_id").eq("user_id", user.id).eq("role", "admin").eq("is_active", true).is("site_id", null).maybeSingle();
+    if (!globalAdmin) return NextResponse.json({ error: "Hanya admin global yang dapat menerbitkan ke semua website." }, { status: 403 });
+  }
+  const { error } = await supabase.schema("artikel").from("articles").update({ ...(input.publishScope ? { publish_scope: input.publishScope } : {}), title: input.title, slug: input.slug, excerpt: input.excerpt, content: input.content, seo_title: input.seoTitle, meta_description: input.metaDescription, featured_image_path: input.featuredImagePath, og_image_path: input.ogImagePath }).eq("id", id);
   if (error) return NextResponse.json({ error: error.message }, { status: 400 });
   try {
     await replaceTags(supabase, id, existing.site_id, input.tagIds);

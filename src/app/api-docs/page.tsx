@@ -27,13 +27,13 @@ const automationEndpoint = [
 
 const examples = {
   publicNext: `const response = await fetch(\n  \`\${process.env.ARTIKEL_API_URL}/api/v1/articles?category=teknologi&page=1&limit=10\`,\n  {\n    headers: { "x-artikel-key": process.env.ARTIKEL_API_KEY! },\n    next: { revalidate: 60 },\n  },\n);\nconst { data, meta } = await response.json();`,
-  automationNext: `const response = await fetch(\n  'https://supabase.carubra.com/functions/v1/automation-api',\n  {\n    method: 'POST',\n    headers: {\n      'x-api-key': process.env.AUTOMATION_API_KEY!,\n      'Content-Type': 'application/json',\n    },\n    body: JSON.stringify({\n      external_id: 'wp-12345',\n      title: 'Judul Artikel',\n      slug: 'judul-artikel',\n      content: '<p>Konten artikel</p>',\n      excerpt: 'Ringkasan',\n      category_name: 'Teknologi',\n      tags: ['tech', 'news'],\n      status: 'draft',\n    }),\n  }\n);\nconst result = await response.json();`,
+  automationNext: `const response = await fetch(\n  'https://supabase.carubra.com/functions/v1/automation-api',\n  {\n    method: 'POST',\n    headers: {\n      'x-api-key': process.env.AUTOMATION_API_KEY!,\n      'Content-Type': 'application/json',\n    },\n    body: JSON.stringify({\n      external_id: 'wp-12345',\n      title: 'Judul Artikel',\n      slug: 'judul-artikel',\n      content: '<p>Konten artikel</p>',\n      excerpt: 'Ringkasan',\n      category_name: 'Teknologi',\n      status: 'draft',\n    }),\n  }\n);\nconst result = await response.json();`,
   vite: `// Browser hanya memanggil backend milik aplikasi.\n// Simpan ARTIKEL_API_KEY pada backend/serverless function.\nconst response = await fetch("/api/articles?category=teknologi");\nconst { data } = await response.json();`,
   laravel: `$response = Http::withHeaders([\n    'x-artikel-key' => config('services.artikel.key'),\n])->get(config('services.artikel.url') . '/api/v1/articles', [\n    'category' => 'teknologi', 'page' => 1, 'limit' => 10,\n]);\n$articles = $response->throw()->json('data');`,
   php: `$ch = curl_init('https://cms.carubra.com/api/v1/articles?category=teknologi&page=1&limit=10');\ncurl_setopt_array($ch, [\n    CURLOPT_RETURNTRANSFER => true,\n    CURLOPT_HTTPHEADER => ['x-artikel-key: ' . getenv('ARTIKEL_API_KEY')],\n]);\n$body = json_decode(curl_exec($ch), true);`,
   wordpress: `$response = wp_remote_get(ARTIKEL_API_URL . '/api/v1/articles?category=teknologi&page=1&limit=10', [\n    'headers' => ['x-artikel-key' => ARTIKEL_API_KEY],\n    'timeout' => 10,\n]);\n$articles = is_wp_error($response) ? [] :\n    (json_decode(wp_remote_retrieve_body($response), true)['data'] ?? []);`,
-  wordpressAutomation: `function push_to_artikel_cms($post_id) {\n    $post = get_post($post_id);\n    \n    $payload = [\n        'external_id' => 'wp-' . $post_id,\n        'title' => $post->post_title,\n        'slug' => $post->post_name,\n        'content' => $post->post_content,\n        'excerpt' => $post->post_excerpt,\n        'category_name' => 'Umum',\n        'status' => $post->post_status === 'publish' ? 'published' : 'draft',\n        'tags' => wp_get_post_tags($post_id, ['fields' => 'names']),\n    ];\n    \n    $response = wp_remote_post(\n        'https://supabase.carubra.com/functions/v1/automation-api',\n        [\n            'headers' => [\n                'x-api-key' => ARTIKEL_AUTOMATION_KEY,\n                'Content-Type' => 'application/json',\n            ],\n            'body' => json_encode($payload),\n            'timeout' => 30,\n        ]\n    );\n    \n    return !is_wp_error($response);\n}\n\nadd_action('save_post', 'push_to_artikel_cms');`,
-  python: `import requests\nimport os\n\ndef push_to_artikel_cms(article):\n    payload = {\n        'external_id': article['external_id'],\n        'title': article['title'],\n        'slug': article['slug'],\n        'content': article['content'],\n        'category_name': article.get('category_name', 'Umum'),\n        'tags': article.get('tags', []),\n        'status': 'draft',\n    }\n    \n    response = requests.post(\n        'https://supabase.carubra.com/functions/v1/automation-api',\n        headers={\n            'x-api-key': os.getenv('AUTOMATION_API_KEY'),\n            'Content-Type': 'application/json',\n        },\n        json=payload,\n        timeout=30\n    )\n    \n    response.raise_for_status()\n    return response.json()`,
+  wordpressAutomation: `function push_to_artikel_cms($post_id) {\n    $post = get_post($post_id);\n    \n    $payload = [\n        'external_id' => 'wp-' . $post_id,\n        'title' => $post->post_title,\n        'slug' => $post->post_name,\n        'content' => $post->post_content,\n        'excerpt' => $post->post_excerpt,\n        'category_name' => 'Umum',\n        'status' => $post->post_status === 'publish' ? 'published' : 'draft',\n    ];\n    \n    $response = wp_remote_post(\n        'https://supabase.carubra.com/functions/v1/automation-api',\n        [\n            'headers' => [\n                'x-api-key' => ARTIKEL_AUTOMATION_KEY,\n                'Content-Type' => 'application/json',\n            ],\n            'body' => json_encode($payload),\n            'timeout' => 30,\n        ]\n    );\n    \n    return !is_wp_error($response);\n}\n\nadd_action('save_post', 'push_to_artikel_cms');`,
+  python: `import requests\nimport os\n\ndef push_to_artikel_cms(article):\n    payload = {\n        'external_id': article['external_id'],\n        'title': article['title'],\n        'slug': article['slug'],\n        'content': article['content'],\n        'category_name': article.get('category_name', 'Umum'),\n        'status': 'draft',\n    }\n    \n    response = requests.post(\n        'https://supabase.carubra.com/functions/v1/automation-api',\n        headers={\n            'x-api-key': os.getenv('AUTOMATION_API_KEY'),\n            'Content-Type': 'application/json',\n        },\n        json=payload,\n        timeout=30\n    )\n    \n    response.raise_for_status()\n    return response.json()`,
 };
 
 function CodeBlock({ children }: { children: string }) {
@@ -66,9 +66,26 @@ function ApiDocsContent() {
                 <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-300">
                   Automation API menjadi endpoint utama untuk push artikel dari semua project. Public Read API terpisah dan hanya untuk membaca artikel published.
                 </p>
+                <p className="mt-3 text-xs font-semibold text-red-200">
+                  Revisi dokumentasi: 12 September 2026, 03:46 ICT (UTC+7)
+                </p>
               </div>
             </div>
           </header>
+
+          <section className="mt-5 rounded-3xl border border-red-100 bg-red-50 p-5 sm:p-6">
+            <h2 className="text-lg font-bold">Riwayat perubahan · 12 September 2026</h2>
+            <p className="mt-2 text-sm text-slate-600">Berdasarkan kode repository. Waktu revisi bukan waktu deployment; Edge Function server belum diverifikasi ulang.</p>
+            <ul className="mt-3 space-y-2 text-sm text-slate-700">
+              <li>POST /api/cms/api-keys/{'{keyId}'}/rotate mengganti secret pada record sama; ID dan label tetap. Respons kini 200, bukan 201. DELETE /api/cms/api-keys/{'{keyId}'} sekarang permanen.</li>
+              <li>Nilai key hanya bisa disalin selama masih tersedia setelah generate/rotasi; tidak dapat diambil ulang setelah reload.</li>
+              <li>POST /api/cms/articles/bulk: ids berisi 1–100 UUID, action status dan status tujuan. Published mengisi published_at; 409 jika tidak ada row diperbarui. Pilih dropdown lalu tekan Terapkan status.</li>
+              <li>GET/POST /api/cms/media membaca/mendaftarkan metadata setelah upload bucket artikel-media. Batas 20 MB; picker gambar artikel tetap 5 MB. Nama asli dipertahankan dalam folder unik. DELETE metadata dan penghapusan object Storage adalah dua langkah.</li>
+              <li>CMS publishScope: selected_sites untuk website sumber; all_active_sites untuk seluruh website aktif, khusus admin global. Public Read API hanya mengembalikan distribusi published untuk site API key; URL dan header tidak berubah.</li>
+              <li>Field otomasi dan contoh disesuaikan dengan source yang memproses request.</li>
+            </ul>
+            <p className="mt-3 text-sm text-slate-600">Endpoint /api/cms/* memakai sesi login dan RLS, bukan x-api-key. Nama file lama tidak diganti otomatis. Upload Automation API yang hanya membawa path tidak otomatis masuk pustaka media. Detail kontrak tersedia di docs/API.md.</p>
+          </section>
 
           <div className="mt-5 grid gap-5 xl:grid-cols-[minmax(0,1fr)_320px]">
             <div className="space-y-5">
@@ -92,7 +109,7 @@ function ApiDocsContent() {
                   </code>
                   .
                 </p>
-                <CodeBlock>{`curl "https://cms.carubra.com/api/v1/articles?category=teknologi&page=1&limit=10" \\\n  -H "x-artikel-key: art_live_xxxxxxxxx"`}</CodeBlock>
+                <CodeBlock>{`curl "https://cms.carubra.com/api/v1/articles?category=teknologi&page=1&limit=10" \\\n  -H "x-artikel-key: ak_live_xxxxxxxxx"`}</CodeBlock>
                 <div className="mt-4 space-y-3">
                   {publicEndpoints.map(([title, endpoint, note]) => (
                     <article
@@ -135,7 +152,7 @@ function ApiDocsContent() {
                   </code>
                   .
                 </p>
-                <CodeBlock>{`curl -X POST "https://supabase.carubra.com/functions/v1/automation-api" \\\n  -H "x-api-key: your_automation_key" \\\n  -H "Content-Type: application/json" \\\n  -d '{\n    "external_id": "wp-12345",\n    "title": "Judul Artikel",\n    "slug": "judul-artikel",\n    "content": "<p>Konten artikel</p>",\n    "excerpt": "Ringkasan",\n    "category_name": "Teknologi",\n    "tags": ["tech", "news"],\n    "status": "draft"\n  }'`}</CodeBlock>
+                <CodeBlock>{`curl -X POST "https://supabase.carubra.com/functions/v1/automation-api" \\\n  -H "x-api-key: your_automation_key" \\\n  -H "Content-Type: application/json" \\\n  -d '{\n    "external_id": "wp-12345",\n    "title": "Judul Artikel",\n    "slug": "judul-artikel",\n    "content": "<p>Konten artikel</p>",\n    "excerpt": "Ringkasan",\n    "category_name": "Teknologi",\n    "status": "draft"\n  }'`}</CodeBlock>
                 <div className="mt-4 space-y-3">
                   {automationEndpoint.map(([title, endpoint, note]) => (
                     <article
@@ -159,11 +176,10 @@ function ApiDocsContent() {
                       <strong>Required:</strong> external_id, title, slug, content, category_name
                     </li>
                     <li>
-                      <strong>Required:</strong> slug, category_name; optional fields: excerpt,
-                      category_id, tags, featured_image, status, seo_title,
-                      meta_description, canonical_url, robots, og_image_url,
-                      published_at
+                      <strong>Optional:</strong> excerpt, featured_image, status,
+                      meta_description, meta_keywords, published_at
                     </li>
+                    <li>category_id, tags, seo_title, canonical_url, robots, og_image_path, og_image_url, dan publishScope tidak diteruskan oleh Automation API saat ini.</li>
                   </ul>
                 </div>
               </section>
@@ -243,7 +259,8 @@ function ApiDocsContent() {
                     <code>x-api-key</code> (automation).
                   </li>
                   <li>Gunakan HTTPS.</li>
-                  <li>Rotasi sebelum revoke key lama.</li>
+                  <li>Rotasi mengganti secret pada record sama.</li>
+                  <li>Delete API key bersifat permanen.</li>
                   <li>Monitor via Audit Logs.</li>
                 </ul>
               </section>
@@ -259,9 +276,6 @@ function ApiDocsContent() {
                   </li>
                   <li>
                     <strong>Auto Category:</strong> Buat kategori jika belum ada
-                  </li>
-                  <li>
-                    <strong>Tag Sync:</strong> Tags otomatis di-sync
                   </li>
                   <li>
                     <strong>Status Control:</strong> Draft hingga published

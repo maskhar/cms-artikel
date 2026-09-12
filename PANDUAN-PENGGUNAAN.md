@@ -125,6 +125,24 @@ Simpan di password manager atau .env server website.
 
 ### B. WORKFLOW ARTIKEL: Writer → Editor → Published
 
+#### **ADMIN GLOBAL: Publikasi ke Semua Website**
+
+```
+1. Login menggunakan akun admin global
+2. Menu: Articles
+3. Klik: + Artikel baru
+4. Pilih Website sumber dan Kategori
+5. Centang: Tayangkan ke semua website aktif
+6. Isi artikel lalu klik: Simpan draft
+7. Jalankan workflow: Submit → Approve → Publish
+```
+
+Website sumber dipakai untuk kategori, tag, dan media utama. Saat artikel menjadi `Published`, CMS mendistribusikannya ke seluruh website aktif. Kategori dengan slug yang sama dibuat otomatis pada website target jika belum tersedia.
+
+Jika website baru ditambahkan kemudian, website tersebut otomatis menerima semua artikel published yang memakai target **semua website aktif**. Artikel biasa yang hanya ditujukan ke website sumber tidak ikut disalin.
+
+Pilihan ini hanya tersedia untuk admin global. Editor dan writer tetap bekerja dalam website yang menjadi scope mereka.
+
 #### **WRITER: Buat Artikel Draft**
 
 **1. Login sebagai writer**
@@ -474,7 +492,8 @@ Checklist:
 2. API key aktif? (tidak revoked/expired)
 3. Website aktif? (tidak disabled admin)
 4. Kategori slug benar? (harus exact match)
-5. API key milik website yang sama dengan artikel?
+5. API key milik website target distribusi artikel?
+6. Jika artikel global, distribusi untuk website tersebut berhasil dibuat?
 
 Test langsung dari CMS:
 curl -i \
@@ -590,7 +609,13 @@ A: Tidak ada timeout otomatis. Editor manual approve/reject.
 A: Tidak di MVP. Workflow wajib: draft → review → approved → published.
 
 **Q: Kategori bisa lintas website?**
-A: Tidak. Setiap kategori terikat ke satu website (tenant isolation).
+A: Setiap kategori tetap terikat ke satu website. Untuk artikel global, CMS membuat kategori dengan slug yang sama pada website target jika belum tersedia.
+
+**Q: Artikel bisa diterbitkan ke semua website sekaligus?**
+A: Bisa untuk admin global. Centang **Tayangkan ke semua website aktif** saat membuat artikel, lalu selesaikan workflow sampai Published.
+
+**Q: Apakah website baru menerima artikel lama?**
+A: Ya, tetapi hanya artikel published dengan scope semua website aktif. Artikel dengan scope satu website tidak ikut didistribusikan.
 
 **Q: API key bisa dipakai untuk website lain?**
 A: Tidak. Satu key hanya bisa akses artikel website yang sama.

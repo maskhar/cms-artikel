@@ -72,6 +72,7 @@ export default function ArticleDetailPage({
 }: {
   params: Promise<{ articleId: string }>;
 }) {
+  const { collapsed } = useSidebar();
   const [article, setArticle] = useState<Article | null>(null);
   const [tags, setTags] = useState<Tag[]>([]);
   const [history, setHistory] = useState<History>({
@@ -183,7 +184,8 @@ export default function ArticleDetailPage({
     }
     setArticle({ ...article, status: body.status });
     setComment("");
-    setMessage("Status artikel diperbarui.");
+    setMessage("Status artikel diperbarui. Memuat status terbaru...");
+    window.location.reload();
   }
   if (!article)
     return (
@@ -193,11 +195,11 @@ export default function ArticleDetailPage({
     );
   const site = Array.isArray(article.sites) ? article.sites[0] : article.sites;
   return (
-    <main className="min-h-screen bg-[#f8fafc] p-3 sm:p-5 lg:p-7">
-      <div className="mx-auto grid max-w-[1800px] gap-6 lg:grid-cols-[240px_minmax(0,1fr)]">
+    <main className="min-h-screen bg-[#f8fafc] p-2 sm:p-5 lg:p-7">
+      <div className={`mx-auto grid max-w-[1800px] gap-3 sm:gap-6 transition-[grid-template-columns] duration-200 ${collapsed ? "lg:grid-cols-[76px_minmax(0,1fr)]" : "lg:grid-cols-[240px_minmax(0,1fr)]"}`}>
         <AppSidebar />
         <section className="min-w-0">
-          <div className="flex flex-wrap items-center justify-between gap-3">
+          <div className="flex items-start justify-between gap-3 px-1 sm:items-center sm:px-0">
             <div>
               <Link
                 href="/articles"
@@ -205,17 +207,17 @@ export default function ArticleDetailPage({
               >
                 <ArrowLeft size={16} /> Kembali ke artikel
               </Link>
-              <p className="mt-5 text-sm font-medium text-[#CE181E]">
+              <p className="mt-3 text-xs font-medium text-[#CE181E] sm:mt-5 sm:text-sm">
                 Artikel
               </p>
-              <h1 className="mt-1 text-3xl font-bold">Edit artikel</h1>
+              <h1 className="mt-1 text-2xl font-bold sm:text-3xl">Edit artikel</h1>
             </div>
-            <span className="rounded-full bg-slate-100 px-3 py-1 text-sm font-semibold">
+            <span className="mt-7 shrink-0 rounded-full bg-slate-100 px-2.5 py-1 text-xs font-semibold sm:mt-0 sm:px-3 sm:text-sm">
               {article.status.replace("_", " ")}
             </span>
           </div>
-          <div className="mt-7 grid gap-6 xl:grid-cols-[minmax(0,1fr)_380px]">
-            <section className="space-y-5 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm md:p-7">
+          <div className="mt-4 grid gap-4 sm:mt-7 sm:gap-6 xl:grid-cols-[minmax(0,1fr)_380px]">
+            <section className="space-y-4 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:space-y-5 md:p-7">
               <label className="block text-sm font-medium">
                 Judul
                 <input
@@ -290,12 +292,37 @@ export default function ArticleDetailPage({
               </div>
               <button
                 onClick={() => void save()}
-                className="ml-auto inline-flex items-center gap-2 rounded-xl bg-[#CE181E] px-4 py-3 text-sm font-semibold text-white"
+                className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-xl bg-[#CE181E] px-4 py-3 text-sm font-semibold text-white sm:ml-auto sm:w-auto"
               >
                 <Save size={17} /> Simpan perubahan
               </button>
             </section>
-            <aside className="space-y-5">
+            <aside className="space-y-5 xl:sticky xl:top-7 xl:max-h-[calc(100vh-3.5rem)] xl:self-start xl:overflow-y-auto xl:pr-1">
+              <section className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5">
+              <h2 className="font-semibold">Workflow dan review</h2>
+            <textarea
+              value={comment}
+              onChange={(event) => setComment(event.target.value)}
+              placeholder="Komentar review (wajib saat minta revisi)"
+              rows={3}
+              className="mt-4 w-full rounded-xl border border-slate-200 px-3 py-3 text-sm"
+            />
+            <div className="mt-4 flex flex-wrap gap-2">
+              {actions
+                .filter(({ key }) => allowedActions.includes(key))
+                .map(({ key, label, Icon }) => (
+                  <button
+                    key={key}
+                    type="button"
+                    onClick={() => workflow(key)}
+                    className="inline-flex items-center gap-2 rounded-xl border border-slate-200 px-3 py-2 text-sm font-semibold hover:bg-slate-50"
+                  >
+                    <Icon size={16} />
+                    {label}
+                  </button>
+                ))}
+            </div>
+            </section>
               <ArticleMediaPicker
                 articleId={article.id}
                 siteId={article.site_id}
@@ -356,32 +383,7 @@ export default function ArticleDetailPage({
               )}
             </aside>
           </div>
-          <section className="mt-6 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-            <h2 className="font-semibold">Workflow dan review</h2>
-            <textarea
-              value={comment}
-              onChange={(event) => setComment(event.target.value)}
-              placeholder="Komentar review (wajib saat minta revisi)"
-              rows={3}
-              className="mt-4 w-full rounded-xl border border-slate-200 px-3 py-3 text-sm"
-            />
-            <div className="mt-4 flex flex-wrap gap-2">
-              {actions
-                .filter(({ key }) => allowedActions.includes(key))
-                .map(({ key, label, Icon }) => (
-                  <button
-                    key={key}
-                    type="button"
-                    onClick={() => workflow(key)}
-                    className="inline-flex items-center gap-2 rounded-xl border border-slate-200 px-3 py-2 text-sm font-semibold hover:bg-slate-50"
-                  >
-                    <Icon size={16} />
-                    {label}
-                  </button>
-                ))}
-            </div>
-          </section>
-          <div className="mt-6 grid gap-6 lg:grid-cols-2">
+          <div className="mt-4 grid gap-4 sm:mt-6 sm:gap-6 lg:grid-cols-2">
             <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
               <h2 className="font-semibold">Revision history</h2>
               <div className="mt-4 space-y-3">
@@ -424,7 +426,7 @@ export default function ArticleDetailPage({
                 )}
               </div>
             </section>
-          </div>
+            </div>
         </section>
       </div>
     </main>
