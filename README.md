@@ -15,6 +15,7 @@ Platform multi-tenant untuk membuat, mereview, menyetujui, dan menerbitkan artik
 ## 🎯 Fitur Utama
 
 - ✅ **Multi-tenant** — Kelola artikel untuk banyak website dalam satu CMS
+- ✅ **Publikasi Global** — Admin global dapat menayangkan satu artikel ke semua website aktif dan website baru
 - ✅ **Role-based Access** — Admin, Editor, Writer dengan permission berbeda
 - ✅ **Workflow Artikel** — Draft → Review → Approved → Published
 - ✅ **Rich Text Editor** — Tiptap dengan gambar, heading, list, alignment
@@ -74,6 +75,27 @@ curl -H "X-Artikel-Key: ak_live_xxx" \
   "https://cms.carubra.com/api/v1/articles/judul-artikel"
 ```
 
+### Publikasi ke Semua Website
+
+Pada form artikel baru, admin global dapat mencentang **Tayangkan ke semua website aktif**. CMS menyimpan website yang dipilih sebagai website sumber untuk kategori, tag, dan media. Saat artikel berstatus `published`, artikel didistribusikan ke seluruh website aktif.
+
+Website baru otomatis menerima artikel dengan `publish_scope = all_active_sites`. Kategori sumber dibuat pada website target jika slug kategori belum tersedia. API key website tetap hanya dapat membaca distribusi milik website tersebut.
+
+Payload CMS API:
+
+```json
+{
+  "siteId": "uuid-website-sumber",
+  "categoryId": "uuid-kategori-sumber",
+  "publishScope": "all_active_sites",
+  "title": "Judul Artikel",
+  "slug": "judul-artikel",
+  "content": "<p>Konten artikel</p>"
+}
+```
+
+`publishScope` menerima `selected_sites` atau `all_active_sites`. Jika tidak dikirim, nilainya `selected_sites`. Nilai `all_active_sites` hanya dapat digunakan admin global.
+
 ### API Response
 
 ```json
@@ -121,6 +143,7 @@ artikel.sites              # Website tenant
 artikel.user_roles         # User assignment per website
 artikel.categories         # Kategori per website
 artikel.articles           # Artikel dengan workflow
+artikel.article_sites      # Distribusi dan status artikel per website
 artikel.tags               # Tag reusable per website
 artikel.article_tags       # Many-to-many artikel-tag
 artikel.article_revisions  # Snapshot setiap perubahan

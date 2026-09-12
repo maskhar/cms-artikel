@@ -1,8 +1,86 @@
 # Automation API Artikel
 
-Kontrak integrasi final per **11 September 2026**.
+Dokumentasi diperbarui **12 September 2026, 03:46 ICT (UTC+7)** berdasarkan kode repository. Waktu ini menandai revisi dokumentasi, bukan deployment semua endpoint. Versi Edge Function di server belum diverifikasi ulang pada revisi ini.
+
+## Riwayat perubahan API
+
+### 12 September 2026, 03:46 ICT — revisi dokumentasi
+
+- Rotasi API key mengganti secret pada record yang sama; tidak membuat record duplikat.
+- `DELETE /api/cms/api-keys/{keyId}` menghapus API key secara permanen.
+- `POST /api/cms/articles/bulk` mengembalikan `409` jika tidak ada artikel yang berubah dan mengisi `published_at` saat status menjadi `published`.
+- Pustaka media menjadi global untuk akun CMS aktif. Upload artikel dan add-on otomatis tercatat di `artikel.media_assets`.
+- Upload media baru mempertahankan nama file asli pada akhir storage path. Folder UUID hanya mencegah bentrok nama.
+- Kontrak Automation API dikoreksi agar hanya menampilkan field yang benar-benar diproses Edge Function.
 
 ## Endpoint final
+## CMS API internal: key, media, dan bulk status
+
+Endpoint `/api/cms/*` memakai sesi login CMS dan RLS, bukan header API key publik/otomasi. Contoh fetch berikut dijalankan dari CMS yang sudah login. Jangan menggunakannya sebagai endpoint push eksternal.
+
+### API key
+
+| Method / path | Perilaku |
+|---|---|
+| `GET /api/cms/api-keys` | Daftar metadata dan prefix; tidak mengembalikan secret. |
+| `POST /api/cms/api-keys` | Body: `siteId`, `label`, `expiresAt` opsional. Mengembalikan `201` dan `data.key`. |
+| `POST /api/cms/api-keys/{keyId}/rotate` | Body `{}` mempertahankan expiry. Mengembalikan `200` dan `data.key`; ID dan label tetap, secret lama langsung tidak berlaku. `last_used_at` direset. Key revoked/kedaluwarsa ditolak. |
+| `DELETE /api/cms/api-keys/{keyId}` | Hapus permanen; `200` dengan `{ "success": true }`, atau `404` jika tidak ditemukan/tidak dapat dihapus. |
+
+**Perubahan kontrak:** DELETE bukan revoke lagi; rotasi bukan create record baru lagi (`201` berubah menjadi `200`). Update integrasi pengelola key yang mengandalkan perilaku lama. Setelah rotasi, ganti secret pada semua konsumen key tersebut.
+
+Nilai penuh key hanya disimpan sementara pada state halaman setelah generate/rotasi. Reload atau meninggalkan halaman menghilangkan nilai tersebut; salin ulang lintas sesi belum tersedia. DB menyimpan hash, bukan secret yang dapat dipulihkan.
+
+### Media global
+
+| Method / path | Perilaku |
+|---|---|
+| `GET /api/cms/media` | Daftar metadata media yang boleh dibaca akun CMS aktif. |
+| `POST /api/cms/media` | Daftarkan/perbarui metadata berdasarkan `storage_path` unik; bukan upload multipart. Respons `201` dengan `data`. |
+| `DELETE /api/cms/media/{assetId}` | Menghapus metadata dan mengembalikan `data.storage_path`. Client galeri kemudian menghapus object Storage; kegagalan penghapusan file dapat terjadi terpisah. |
+
+Alur upload CMS: upload file ke bucket `artikel-media` memakai sesi pengguna, lalu POST metadata. Field wajib: `storagePath`, `fileName`, `mimeType`, `fileSize`; `altText` opsional. Owner object diverifikasi lewat RLS. Batas bucket/metadata 20 MB; picker gambar utama dan editor tetap 5 MB dengan format JPG/PNG/WebP/GIF.
+
+```json
+{
+  "storagePath": "global/media/550e8400-e29b-41d4-a716-446655440000/foto-acara.jpg",
+  "fileName": "foto-acara.jpg",
+  "mimeType": "image/jpeg",
+  "fileSize": 381952,
+  "altText": "Foto acara"
+}
+```
+
+File upload baru memakai nama asli pada akhir path, dengan folder UUID untuk mencegah overwrite. Karakter pemisah path/kontrol dinormalisasi. File lama yang sudah bernama UUID tidak otomatis berganti nama. Upload artikel/OG/editor/add-on CMS kini mendaftarkan metadata; path eksternal dari Automation API tidak otomatis diimpor. Menghapus artikel tidak otomatis menghapus media. Bulk select, ukuran kartu, drag selection, dan popup adalah fitur UI, bukan endpoint baru.
+
+### Bulk status artikel
+
+```js
+const response = await fetch('/api/cms/articles/bulk', {
+  method: 'POST',
+  headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify({
+    ids: ['550e8400-e29b-41d4-a716-446655440000'],
+    action: 'status',
+    status: 'published'
+  })
+});
+const body = await response.json();
+if (!response.ok) throw new Error(body.error);
+```
+
+- `ids`: 1–100 UUID. `action`: `review`, `archive`, `status`, atau `delete`.
+- `status` wajib untuk action `status`: draft, in_review, revision_requested, approved, published, archived.
+- `status`/`archive` memerlukan admin/editor; delete memerlukan admin dan tetap dibatasi RLS.
+- Action `status` ke Published mengisi ulang `published_at` dengan waktu request. Status lain mempertahankan tanggal publikasi lama; `archived_at` diisi untuk Archived atau dikosongkan untuk status lain.
+- `review` hanya memproses draft/revision_requested; `archive` hanya memproses published.
+- Sukses `200`: `{ "data": { "affected": 2 } }`. Angka ini jumlah row diperbarui, bukan jaminan seluruh pilihan berhasil diproses.
+- `409` bila update tidak menyentuh row; `404` bila artikel tidak ditemukan/tidak dapat dibaca; `403` bila role tidak cukup; `400` untuk payload/query tidak valid.
+- Dropdown hanya memilih tujuan; pengguna menekan **Terapkan status** untuk mengirim request.
+
+## Endpoint Automation API
+
+Endpoint dan header Public Read API tetap sama. Integrasi pembaca tidak perlu mengubah URL karena perubahan UI galeri.
 
 Semua project yang membuat atau memperbarui artikel memakai:
 
@@ -33,7 +111,6 @@ curl -X POST "https://supabase.carubra.com/functions/v1/automation-api" \
     "slug": "judul-artikel",
     "content": "<p>Konten artikel</p>",
     "category_name": "Teknologi",
-    "tags": ["AI", "DevOps"],
     "status": "draft"
   }'
 ```
@@ -57,19 +134,16 @@ Gunakan `external_id` stabil dan ber-namespace, misalnya `wordpress-42`, `erp-ne
 | `content` | string | Wajib | Isi artikel; HTML diperbolehkan. |
 | `slug` | string | Wajib | Slug artikel; huruf kecil dan tanda hubung. |
 | `excerpt` | string | Opsional | Ringkasan artikel. |
-| `category_id` | UUID | Opsional | ID kategori yang sudah ada. |
 | `category_name` | string | Wajib | Nama kategori untuk resolusi/pembuatan kategori. |
-| `tags` | string[] | Opsional | Daftar nama tag. |
 | `featured_image` | string | Opsional | Path storage gambar utama. |
 | `status` | enum | Opsional | `draft`, `in_review`, `revision_requested`, `approved`, `published`, `archived`. Default `draft`. |
-| `seo_title` | string | Opsional | Judul SEO. |
 | `meta_description` | string | Opsional | Meta description. |
-| `canonical_url` | string | Opsional | Canonical URL. |
-| `robots` | string | Opsional | Default `index, follow`. |
-| `og_image_path` | string | Opsional | Path storage Open Graph image. |
+| `meta_keywords` | string[] | Opsional | Daftar keyword metadata. |
 | `published_at` | ISO 8601 | Opsional | Waktu publikasi. |
 
 Payload minimum:
+
+`category_id`, `tags`, `seo_title`, `canonical_url`, `robots`, `og_image_path`, `og_image_url`, dan `publishScope` tidak diteruskan oleh source Automation API saat ini. Jangan menganggap field tersebut tersimpan meski request sukses. `meta_keywords` bukan pengganti sinkronisasi relasi tag. Mengirim path gambar juga tidak mengunggah file atau otomatis mendaftarkannya ke pustaka media.
 
 ```json
 {
@@ -134,7 +208,34 @@ response.raise_for_status()
 
 ## Public Read API: mengambil artikel untuk website
 
-Public Read API dipakai website untuk membaca artikel `published`, termasuk gambar utama, SEO, kategori, tag, dan add-on. API key read terikat ke satu website melalui `artikel.api_keys.site_id`, sehingga hasil otomatis hanya berasal dari website tersebut.
+Public Read API dipakai website untuk membaca artikel `published`, termasuk gambar utama, SEO, kategori, tag, dan add-on. API key read terikat ke satu website melalui `artikel.api_keys.site_id`, sehingga hasil hanya berasal dari distribusi artikel untuk website tersebut.
+
+Artikel dapat memakai `publish_scope` berikut:
+
+- `selected_sites`: artikel hanya didistribusikan ke website sumber.
+- `all_active_sites`: artikel didistribusikan ke seluruh website aktif dan otomatis dipasang pada website baru.
+
+Scope publikasi tidak mengubah kontrak Public Read API. Konsumen tetap memakai endpoint dan API key yang sama. Tabel `artikel.article_sites` menentukan slug, kategori, status, dan waktu publish untuk setiap website.
+
+### CMS API: scope publikasi artikel
+
+`POST /api/cms/articles` menerima field opsional berikut:
+
+```json
+{
+  "publishScope": "selected_sites"
+}
+```
+
+Untuk admin global:
+
+```json
+{
+  "publishScope": "all_active_sites"
+}
+```
+
+Jika field tidak dikirim, default adalah `selected_sites`. Request `all_active_sites` dari pengguna selain admin global menghasilkan `403 Forbidden`. `PATCH /api/cms/articles/{articleId}` menerima field yang sama untuk mengubah artikel existing menjadi artikel global.
 
 Base URL:
 

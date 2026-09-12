@@ -21,6 +21,8 @@ export default function TeamPage() {
   const [roles, setRoles] = useState<Role[]>([]); 
   const [sites, setSites] = useState<Site[]>([]); 
   const [message, setMessage] = useState("");
+  const [selectedSiteIds, setSelectedSiteIds] = useState<string[]>([]);
+  const [selectedRole, setSelectedRole] = useState<Role["role"]>("writer");
   const [editingUserId, setEditingUserId] = useState<string | null>(null);
   const [editName, setEditName] = useState("");
 
@@ -43,21 +45,20 @@ export default function TeamPage() {
 
   async function assign(event: FormEvent<HTMLFormElement>) { 
     event.preventDefault(); 
-    const form = new FormData(event.currentTarget); 
-    const role = String(form.get("role")); 
-    const response = await fetch("/api/cms/team", { 
-      method: "POST", 
-      headers: { "Content-Type": "application/json" }, 
-      body: JSON.stringify({ 
-        email: form.get("email"), 
-        role, 
-        siteId: role === "admin" ? null : form.get("siteId") 
-      }) 
+    const formElement = event.currentTarget;
+    const form = new FormData(formElement);
+    const role = String(form.get("role"));
+    const response = await fetch("/api/cms/team", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email: form.get("email"), role, siteIds: role === "admin" ? [] : selectedSiteIds })
     }); 
     const body = await response.json().catch(() => null); 
     setMessage(response.ok ? "Role berhasil ditambahkan." : body?.error ?? "Role gagal ditambahkan."); 
     if (response.ok) { 
-      event.currentTarget.reset(); 
+      formElement.reset();
+      setSelectedSiteIds([]);
+      setSelectedRole("writer");
       void load(); 
     } 
   }
@@ -265,7 +266,9 @@ export default function TeamPage() {
             <label className="mt-4 block text-sm font-medium text-slate-700">
               Role
               <select 
-                name="role" 
+                name="role"
+                value={selectedRole}
+                onChange={(event) => { setSelectedRole(event.target.value as Role["role"]); setSelectedSiteIds([]); }}
                 className="mt-1.5 min-h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm outline-none focus:border-[#CE181E] focus:ring-4 focus:ring-red-100"
               >
                 <option value="writer">Writer</option>
@@ -273,16 +276,7 @@ export default function TeamPage() {
                 <option value="admin">Admin global</option>
               </select>
             </label>
-            <label className="mt-4 block text-sm font-medium text-slate-700">
-              Website <span className="font-normal text-slate-400">(editor/writer)</span>
-              <select 
-                name="siteId" 
-                className="mt-1.5 min-h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm outline-none focus:border-[#CE181E] focus:ring-4 focus:ring-red-100"
-              >
-                <option value="">Pilih website</option>
-                {sites.map((site) => <option key={site.id} value={site.id}>{site.name}</option>)}
-              </select>
-            </label>
+            <fieldset disabled={selectedRole === "admin"} className="mt-4 disabled:opacity-50"><legend className="text-sm font-medium text-slate-700">Website akses <span className="font-normal text-slate-400">(pilih satu atau beberapa)</span></legend><div className="mt-1.5 max-h-48 space-y-2 overflow-y-auto rounded-xl border border-slate-200 p-3">{sites.map((site) => <label key={site.id} className="flex cursor-pointer items-center gap-2 text-sm"><input type="checkbox" checked={selectedSiteIds.includes(site.id)} onChange={(event) => setSelectedSiteIds((current) => event.target.checked ? [...current, site.id] : current.filter((id) => id !== site.id))}/>{site.name}</label>)}</div>{selectedRole === "admin" && <p className="mt-1 text-xs text-slate-500">Admin global otomatis memiliki akses ke semua website.</p>}</fieldset>
             <div className="mt-4 rounded-xl bg-slate-50 p-3 text-xs leading-5 text-slate-500">
               Admin global mengabaikan pilihan website. Editor dan writer memerlukan website.
             </div>

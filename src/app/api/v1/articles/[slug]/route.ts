@@ -22,9 +22,9 @@ export async function GET(
   const admin = createAdminClient();
   const db = admin.schema("artikel");
   const { data, error } = await db
-    .from("articles")
+    .from("article_sites")
     .select(
-      "id, title, slug, excerpt, content, featured_image_path, seo_title, meta_description, canonical_url, robots, og_image_path, published_at, categories!inner(name, slug), article_tags(tags(name, slug))",
+      "article_id, slug, published_at, categories:category_id(name, slug), articles!inner(id, title, excerpt, content, featured_image_path, seo_title, meta_description, canonical_url, robots, og_image_path, article_tags(tags(name, slug)))",
     )
     .eq("site_id", authentication.apiKey.site_id)
     .eq("slug", slug)
@@ -45,10 +45,12 @@ export async function GET(
       { error: { code: "NOT_FOUND", message: "Artikel tidak ditemukan." } },
       { status: 404, headers: authentication.headers },
     );
+  const articleId = data.article_id;
+  const rawArticle = Array.isArray(data.articles) ? data.articles[0] : data.articles;
   const { data: rawAddons } = await db
     .from("article_addons")
     .select("id, addon_type, title, placement, sort_order, config")
-    .eq("article_id", data.id)
+    .eq("article_id", articleId)
     .eq("site_id", authentication.apiKey.site_id)
     .eq("is_active", true)
     .order("sort_order");
@@ -116,7 +118,7 @@ export async function GET(
       return { ...addon, config };
     }),
   );
-  const { id: _id, ...article } = data;
+  const { id: _id, ...article } = { ...rawArticle, slug: data.slug, published_at: data.published_at, categories: data.categories };
   void _id;
   const [{ data: featuredImage }, { data: ogImage }] = await Promise.all([
     article.featured_image_path

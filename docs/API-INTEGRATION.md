@@ -1,6 +1,6 @@
 # Integrasi Public API Artikel
 
-**Versi:** 10 September 2026
+**Versi:** 12 September 2026
 
 > Dokumen ini tetap berlaku untuk website pembaca melalui Public Read API `/api/v1/*`. Automation yang membuat atau memperbarui artikel mengikuti `docs/UNIFIED-CMS-API-DESIGN.md`; keduanya tidak saling menggantikan.
 
@@ -173,10 +173,10 @@ Gunakan blok berikut saat meminta AI menganalisis integrasi ini:
 Project CMS memakai Next.js 16 dan self-hosted Supabase.
 Semua data CMS berada di schema PostgreSQL `artikel`.
 Website dimodelkan sebagai tenant pada `artikel.sites`.
-Artikel terikat tenant melalui `site_id` dan kategori melalui `category_id`.
+Artikel memiliki website sumber melalui `articles.site_id`. Distribusi publik per tenant disimpan pada `artikel.article_sites`, termasuk `site_id`, kategori, slug, status, dan waktu publish.
 Public API memakai header `x-artikel-key`; key menentukan `site_id` dan tidak boleh dikirim dari browser.
 Endpoint daftar artikel: GET /api/v1/articles?category={slug}&page=1&limit=50.
-Endpoint hanya mengembalikan artikel status `published` milik tenant API key dan kategori dengan slug yang diminta.
+Endpoint hanya mengembalikan distribusi berstatus `published` milik tenant API key dan kategori dengan slug yang diminta. Artikel global tetap terlihat sebagai artikel biasa bagi website konsumen.
 Response daftar berbentuk `{ data, meta }`.
 Frontend Vite memakai proxy PHP `api/articles.php` agar API key tetap server-side.
 Hosting uteroindonesia.com memakai PHP 7.4.33; jangan gunakan syntax PHP 8 seperti `mixed` atau `never`.

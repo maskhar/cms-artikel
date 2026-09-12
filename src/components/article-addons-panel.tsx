@@ -1,6 +1,8 @@
 "use client";
 
 import { createClient } from "@/lib/supabase/client";
+import { registerMedia } from "@/lib/register-media";
+import { mediaStoragePath } from "@/lib/media-storage-path";
 import { GripVertical, ImagePlus, LoaderCircle, Plus, Puzzle, Trash2, X } from "lucide-react";
 import { DragEvent, useEffect, useState } from "react";
 
@@ -33,7 +35,7 @@ export function ArticleAddonsPanel({ articleId, siteId, siteSlug, articleSlug, d
   const [galleries, setGalleries] = useState<Gallery[]>([]);
   const [addonType, setAddonType] = useState<(typeof addonTypes)[number]>("image_slider");
   const [title, setTitle] = useState("");
-  const [placement, setPlacement] = useState<ArticleAddonDraft["placement"]>("after_content");
+  const placement: ArticleAddonDraft["placement"] = "after_content";
   const [galleryId, setGalleryId] = useState("");
   const [mediaPaths, setMediaPaths] = useState<string[]>([]);
   const [mediaNames, setMediaNames] = useState<Record<string, string>>({});
@@ -57,7 +59,7 @@ export function ArticleAddonsPanel({ articleId, siteId, siteSlug, articleSlug, d
   function updateAddons(nextAddons: ArticleAddonDraft[]) { if (isDraft) onDraftAddonsChange?.(nextAddons); else setSavedAddons(nextAddons); }
   function startAddonDrag(event: DragEvent<HTMLElement>, index: number, addon: ArticleAddonDraft) { setDraggedIndex(index); event.dataTransfer.effectAllowed = "copyMove"; event.dataTransfer.setData("application/x-artikel-addon", JSON.stringify({ id: addon.id, addonType: addon.addon_type, title: addon.title || addon.addon_type.replaceAll("_", " ") })); }
   function insertAddon(addon: ArticleAddonDraft) { window.dispatchEvent(new CustomEvent("artikel:insert-addon", { detail: { id: addon.id, addonType: addon.addon_type, title: addon.title || addon.addon_type.replaceAll("_", " ") } })); }
-  function resetComposer() { setTitle(""); setPlacement("after_content"); setGalleryId(""); setMediaPaths([]); setMediaNames({}); }
+  function resetComposer() { setTitle(""); setGalleryId(""); setMediaPaths([]); setMediaNames({}); }
 
   async function uploadMedia(files: FileList | File[]) {
     if (!siteId || !siteSlug) { setMessage("Pilih website sebelum mengunggah media."); return; }
@@ -67,10 +69,11 @@ export function ArticleAddonsPanel({ articleId, siteId, siteSlug, articleSlug, d
     setUploading(true);
     const uploadedMedia: Array<{ path: string; name: string }> = [];
     for (const file of acceptedFiles) {
-      const extension = file.name.split(".").pop() || "bin";
-      const path = siteSlug + "/articles/" + (articleSlug || "drafts") + "/addons/" + crypto.randomUUID() + "." + extension;
+      const path = mediaStoragePath(siteSlug + "/articles/" + (articleSlug || "drafts") + "/addons", file.name);
       const { error } = await createClient().storage.from("artikel-media").upload(path, file, { contentType: file.type });
       if (error) { setMessage(error.message); continue; }
+      const metadataError = await registerMedia(path, file);
+      if (metadataError) { await createClient().storage.from("artikel-media").remove([path]); setMessage(metadataError); continue; }
       uploadedMedia.push({ path, name: file.name });
     }
     setUploading(false);
@@ -152,7 +155,6 @@ export function ArticleAddonsPanel({ articleId, siteId, siteSlug, articleSlug, d
       <div className="mt-5 border-t border-slate-100 pt-4">
         <select value={addonType} onChange={(event) => { setAddonType(event.target.value as (typeof addonTypes)[number]); setMediaPaths([]); }} className="min-h-10 w-full rounded-xl border border-slate-200 px-3 text-sm">{addonTypes.map((item) => <option key={item} value={item}>{item.replaceAll("_", " ")}</option>)}</select>
         <input value={title} onChange={(event) => setTitle(event.target.value)} placeholder="Judul add-on (opsional)" className="mt-2 min-h-10 w-full rounded-xl border border-slate-200 px-3 text-sm"/>
-        <select value={placement} onChange={(event) => setPlacement(event.target.value as ArticleAddonDraft["placement"])} className="mt-2 min-h-10 w-full rounded-xl border border-slate-200 px-3 text-sm"><option value="after_content">Setelah konten</option><option value="before_content">Sebelum konten</option></select>
         {galleryAddonTypes.has(addonType) && <select value={galleryId} onChange={(event) => setGalleryId(event.target.value)} className="mt-2 min-h-10 w-full rounded-xl border border-slate-200 px-3 text-sm"><option value="">Pilih gallery yang ada (opsional)</option>{galleries.map((gallery) => <option key={gallery.id} value={gallery.id}>{gallery.name}</option>)}</select>}
         {(galleryAddonTypes.has(addonType) || fileAddonTypes.has(addonType)) && <div onDragOver={(event) => event.preventDefault()} onDrop={handleMediaDrop} className="mt-2 rounded-xl border-2 border-dashed border-slate-300 p-4 text-center text-sm text-slate-600"><input id={mediaInputId} type="file" multiple={galleryAddonTypes.has(addonType)} accept={accepts} className="sr-only" onChange={(event) => { void uploadMedia(event.target.files ?? []); event.target.value = ""; }}/><label htmlFor={mediaInputId} className="flex cursor-pointer flex-col items-center gap-1"><ImagePlus size={18}/><span>{uploading ? <LoaderCircle className="animate-spin" size={18}/> : "Tarik " + uploadLabel + " ke sini atau pilih file"}</span><span className="text-xs text-slate-400">Maksimum 20 MB per file</span></label></div>}
         {!!mediaPaths.length && <div className="mt-2 space-y-1"><p className="text-xs text-slate-500">Tarik item untuk mengatur urutan media.</p>{mediaPaths.map((path, index) => <div key={path} draggable onDragStart={() => setDraggedMediaIndex(index)} onDragOver={(event) => { event.preventDefault(); handleMediaReorder(index); }} onDragEnd={finishMediaReorder} className="flex cursor-move items-center justify-between gap-2 rounded-lg bg-slate-50 px-2 py-1.5 text-xs"><span className="truncate">{index + 1}. {mediaNames[path] ?? path.split("/").at(-1)}</span><button type="button" onClick={() => { setMediaPaths((paths) => paths.filter((item) => item !== path)); setMediaNames((names) => { const { [path]: _removed, ...remaining } = names; return remaining; }); }} className="shrink-0 rounded p-1 text-red-600 hover:bg-red-50" aria-label="Hapus media"><X size={14}/></button></div>)}</div>}

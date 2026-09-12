@@ -3,7 +3,12 @@ import { z } from "zod";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 
-const assignmentSchema = z.object({ email: z.string().email().transform((value) => value.toLowerCase()), siteId: z.string().uuid().nullable(), role: z.enum(["admin", "editor", "writer"]) });
+const assignmentSchema = z.object({
+  email: z.string().trim().email().transform((value) => value.toLowerCase()),
+  siteIds: z.array(z.string().uuid()).max(100).optional(),
+  siteId: z.string().uuid().nullable().optional(),
+  role: z.enum(["admin", "editor", "writer"]),
+});
 
 async function requireGlobalAdmin() {
   const supabase = await createClient();
@@ -40,7 +45,7 @@ export async function GET() {
             name: userData.user.user_metadata?.full_name ?? userData.user.user_metadata?.name ?? null
           });
         }
-      } catch (err) {
+      } catch {
         // User doesn't exist, will be marked as not found
       }
     })
@@ -64,13 +69,28 @@ export async function POST(request: Request) {
   const parsed = assignmentSchema.safeParse(await request.json());
   if (!parsed.success) return NextResponse.json({ error: "Email, website, atau role tidak valid." }, { status: 400 });
   const input = parsed.data;
-  if (input.role === "admin" && input.siteId) return NextResponse.json({ error: "Admin harus memakai scope global." }, { status: 400 });
-  if (input.role !== "admin" && !input.siteId) return NextResponse.json({ error: "Editor/writer wajib ditugaskan ke website." }, { status: 400 });
+  const siteIdsInput = input.siteIds ?? (input.siteId ? [input.siteId] : []);
+  if (input.role === "admin" && siteIdsInput.length) return NextResponse.json({ error: "Admin harus memakai scope global." }, { status: 400 });
+  if (input.role !== "admin" && !siteIdsInput.length) return NextResponse.json({ error: "Editor/writer wajib ditugaskan minimal ke satu website." }, { status: 400 });
   const admin = createAdminClient();
-  const { data: users } = await admin.auth.admin.listUsers({ page: 1, perPage: 1000 });
-  const target = users.users.find((user) => user.email?.toLowerCase() === input.email);
-  if (!target) return NextResponse.json({ error: "Akun Auth dengan email tersebut tidak ditemukan. Buat akun melalui Supabase Auth sebelum memberi role." }, { status: 422 });
-  const { data, error } = await admin.schema("artikel").from("user_roles").insert({ user_id: target.id, site_id: input.siteId, role: input.role, is_active: true }).select("id").single();
-  if (error) return NextResponse.json({ error: error.code === "23505" ? "Role tersebut sudah ada." : error.message }, { status: 400 });
-  return NextResponse.json({ data }, { status: 201 });
+  let target = null;
+  for (let page = 1; page <= 1000; page += 1) {
+    const { data: users, error: userError } = await admin.auth.admin.listUsers({ page, perPage: 100 });
+    if (userError) return NextResponse.json({ error: `Auth user tidak dapat dibaca: ${userError.message}` }, { status: 502 });
+    target = users.users.find((user) => user.email?.trim().toLowerCase() === input.email) ?? null;
+    if (target || users.users.length < 100) break;
+  }
+  if (!target) return NextResponse.json({ error: `Akun Auth dengan email "${input.email}" tidak ditemukan. Pastikan email sama persis dengan akun di Supabase Auth.` }, { status: 422 });
+  const siteIds = [...new Set(siteIdsInput)];
+  if (input.role !== "admin") {
+    const { data: validSites, error: siteError } = await admin.schema("artikel").from("sites").select("id").in("id", siteIds).eq("is_active", true);
+    if (siteError) return NextResponse.json({ error: siteError.message }, { status: 400 });
+    if ((validSites ?? []).length !== siteIds.length) return NextResponse.json({ error: "Satu atau lebih website tidak valid atau nonaktif." }, { status: 400 });
+  }
+  const assignments: Array<{ user_id: string; site_id: string | null; role: "admin" | "editor" | "writer"; is_active: boolean }> = input.role === "admin"
+    ? [{ user_id: target.id, site_id: null, role: input.role, is_active: true }]
+    : siteIds.map((siteId) => ({ user_id: target.id, site_id: siteId, role: input.role, is_active: true }));
+  const { data, error } = await admin.schema("artikel").from("user_roles").upsert(assignments as never, { onConflict: "user_id,site_id,role" }).select("id, site_id, role, is_active");
+  if (error) return NextResponse.json({ error: error.message }, { status: 400 });
+  return NextResponse.json({ data, created: data?.length ?? 0 }, { status: 201 });
 }
