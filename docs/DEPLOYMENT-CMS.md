@@ -21,7 +21,7 @@
 
 ### Deploy/Update Aplikasi
 
-`ash
+`ash
 # SSH ke server
 ssh maskhar@20.20.20.173
 
@@ -41,7 +41,7 @@ docker logs cms-artikel -f
 
 ### Monitoring
 
-`ash
+`ash
 # Cek status container
 docker ps --filter 'name=cms-artikel'
 

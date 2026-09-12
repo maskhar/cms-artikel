@@ -547,7 +547,7 @@ Document in `docs/POSTMORTEM-<date>.md`:
 After successful production deployment:
 
 1. Update `README.md` with API endpoint
-2. Update `PANDUAN-PENGGUNAAN.md` with automation examples
+2. Update `docs/PANDUAN-PENGGUNAAN.md` with automation examples
 3. Create API client examples (curl, JavaScript, Python)
 4. Update changelog
 5. Notify stakeholders via email/Slack

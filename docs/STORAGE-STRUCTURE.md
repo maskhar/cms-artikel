@@ -4,7 +4,7 @@ Tanggal: 11 September 2026
 
 ## Struktur Folder Storage
 
-Semua file media disimpan di bucket rtikel-media dengan struktur folder yang mudah dibaca dan dikelola:
+Semua file media disimpan di bucket rtikel-media dengan struktur folder yang mudah dibaca dan dikelola:
 
 ### 1. Gallery Images
 
@@ -64,7 +64,7 @@ Semua file media disimpan di bucket rtikel-media dengan struktur folder yang mu
 ## Integrasi dengan Gallery Page
 
 Semua gambar yang diupload (baik melalui gallery, artikel, atau addon) akan:
-- Disimpan di rtikel.media_assets table
+- Disimpan di rtikel.media_assets table
 - Tampil di halaman /gallery untuk dikelola
 - Dapat dipilih ulang untuk digunakan di artikel lain
 

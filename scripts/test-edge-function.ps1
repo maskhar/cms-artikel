@@ -1,5 +1,5 @@
 # Test Automation API Edge Function
-# Usage: .\test-edge-function.ps1
+# Usage: .\scripts\test-edge-function.ps1
 
 $SUPABASE_URL = "https://supabase.maskhar.net"
 $API_KEY = "YOUR_API_KEY_HERE"

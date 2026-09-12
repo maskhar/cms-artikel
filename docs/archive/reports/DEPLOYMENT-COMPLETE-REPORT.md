@@ -13,20 +13,20 @@
 **Migration 1:** Add external_id column
 - File: supabase/migrations/202609100013_add_external_id_to_articles.sql
 - Status: ✅ Applied to staging
-- Verification: Column rtikel.articles.external_id exists
+- Verification: Column rtikel.articles.external_id exists
 
 **Migration 2:** Create upsert function
 - File: supabase/migrations/202609100014_create_upsert_automation_article_function.sql
 - Status: ✅ Applied to staging
-- Verification: Function rtikel.upsert_automation_article() exists
+- Verification: Function rtikel.upsert_automation_article() exists
 
 **Migration 3:** RLS Policies
 - File: supabase/migrations/202609100015_add_automation_api_rls_policies.sql
 - Status: ✅ Applied to staging
 - Verification: 3 policies active:
-  - utomation_api_insert_articles
-  - utomation_api_select_articles
-  - utomation_api_update_articles
+  - utomation_api_insert_articles
+  - utomation_api_select_articles
+  - utomation_api_update_articles
 
 ### 2. Edge Function (100% Complete)
 
@@ -66,9 +66,9 @@
 
 ### Test Files
 1. 	est-edge-function.ps1 - PowerShell test script
-2. xamples/nodejs/test-automation-api.js
-3. xamples/python/test_automation_api.py
-4. xamples/php/test-automation-api.php
+2. xamples/nodejs/test-automation-api.js
+3. xamples/python/test_automation_api.py
+4. xamples/php/test-automation-api.php
 
 ---
 

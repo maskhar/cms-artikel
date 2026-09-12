@@ -1,6 +1,9 @@
 # Deploy CMS Artikel to Server
 $ErrorActionPreference = 'Stop'
 
+Push-Location (Split-Path -Parent $PSScriptRoot)
+try {
+
 Write-Host "==> Syncing files to server..." -ForegroundColor Cyan
 rsync -avz --exclude 'node_modules' --exclude '.next' --exclude '.git' --exclude 'dist' --exclude 'build' -e ssh . maskhar@20.20.20.173:~/apps/cms-artikel/
 
@@ -18,3 +21,6 @@ ssh maskhar@20.20.20.173 "docker ps --filter 'name=cms-artikel'"
 
 Write-Host "
 ==> Deploy complete!" -ForegroundColor Green
+} finally {
+    Pop-Location
+}

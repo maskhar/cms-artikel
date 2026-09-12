@@ -52,7 +52,7 @@ serve(async (req) => {
 \\\
 
 ### 4. Deploy & Test (10 menit)
-\\\ash
+\\\ash
 # Local
 cd supabase/migrations
 psql ... -f 202609100013_automation_external_id.sql

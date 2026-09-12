@@ -22,14 +22,14 @@ WHERE table_schema='artikel' AND table_name='articles' AND column_name='external
 SELECT routine_name FROM information_schema.routines 
 WHERE routine_schema='artikel' AND routine_name='upsert_automation_article';
 ```
-**Result:** Function rtikel.upsert_automation_article exists
+**Result:** Function rtikel.upsert_automation_article exists
 
 ### Migration 3: RLS Policies
 **Status:** ✅ **APPLIED**
 **Policies found:**
-- ✅ utomation_api_insert_articles (INSERT)
-- ✅ utomation_api_select_articles (SELECT)
-- ✅ utomation_api_update_articles (UPDATE)
+- ✅ utomation_api_insert_articles (INSERT)
+- ✅ utomation_api_select_articles (SELECT)
+- ✅ utomation_api_update_articles (UPDATE)
 
 ---
 

@@ -13,6 +13,7 @@ Gunakan dokumen berikut sebagai kontrak aktif:
 | 3 | [`API-DEPLOYMENT.md`](API-DEPLOYMENT.md) | Deployment API, environment, migration, dan smoke test. |
 | 4 | [`DEPLOYMENT-AUTOMATION-API.md`](DEPLOYMENT-AUTOMATION-API.md) | Runbook deployment Edge Function Automation API. |
 | 5 | [`STORAGE-STRUCTURE.md`](STORAGE-STRUCTURE.md) | Aturan path storage untuk artikel, gambar, dan file. |
+| 6 | [`PANDUAN-PENGGUNAAN.md`](PANDUAN-PENGGUNAAN.md) | Panduan CMS untuk admin, editor, writer, dan developer tenant. |
 
 Jika dokumen lain berbeda dengan `API.md`, ikuti `API.md` dan update dokumen lama sebelum dipakai sebagai referensi.
 
@@ -29,6 +30,7 @@ Jika dokumen lain berbeda dengan `API.md`, ikuti `API.md` dan update dokumen lam
 
 - [`UAT-RELEASE-CHECKLIST.md`](UAT-RELEASE-CHECKLIST.md) — checklist UAT dan release.
 - [`DOCKER-WHITELABEL-CMS.md`](DOCKER-WHITELABEL-CMS.md) — catatan deployment Docker white-label.
+- [`DEPLOYMENT-CMS.md`](DEPLOYMENT-CMS.md) — operasional container CMS production.
 - [`TODO.md`](TODO.md) — pekerjaan terbuka.
 - [`QUICK-REFERENCE-AUTOMATION-API.md`](QUICK-REFERENCE-AUTOMATION-API.md) — ringkasan cepat; gunakan `API.md` jika ada perbedaan.
 
@@ -48,3 +50,12 @@ Supabase self-hosted memakai server `maskhar@20.20.20.173` dan direktori:
 ```
 
 Sebelum perubahan infrastructure, inspeksi konfigurasi Docker Compose dan pertahankan service, volume, environment, secret, serta aplikasi lain yang sudah berjalan.
+
+## Skrip Operasional
+
+- [`../scripts/deploy.ps1`](../scripts/deploy.ps1) — sinkronisasi dan deploy container CMS.
+- [`../scripts/test-edge-function.ps1`](../scripts/test-edge-function.ps1) — smoke test Edge Function Automation API.
+
+## SQL Manual
+
+[`../supabase/manual/`](../supabase/manual/) menyimpan SQL hotfix yang pernah dijalankan manual. File di sana bukan migrasi dan tidak boleh dijalankan ulang otomatis.

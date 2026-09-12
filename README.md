@@ -32,7 +32,7 @@ Platform multi-tenant untuk membuat, mereview, menyetujui, dan menerbitkan artik
 
 ### Untuk Pengguna (Non-Technical)
 
-**[PANDUAN-PENGGUNAAN.md](PANDUAN-PENGGUNAAN.md)** — Panduan lengkap cara pakai CMS untuk:
+**[Panduan Penggunaan](docs/PANDUAN-PENGGUNAAN.md)** — Panduan lengkap cara pakai CMS untuk:
 - Admin: setup website, user, kategori, API key
 - Editor: review, approve, publish artikel
 - Writer: buat artikel, submit review, perbaiki revisi
@@ -49,6 +49,7 @@ Platform multi-tenant untuk membuat, mereview, menyetujui, dan menerbitkan artik
 | [TODO.md](docs/TODO.md) | Development checklist & roadmap |
 | [API-INTEGRATION.md](docs/API-INTEGRATION.md) | Panduan integrasi Public Read API |
 | [DEPLOYMENT-TENANT-API.md](docs/DEPLOYMENT-TENANT-API.md) | Deployment runbook lengkap |
+| [DEPLOYMENT-CMS.md](docs/DEPLOYMENT-CMS.md) | Operasional container CMS production |
 | [UNIFIED-CMS-API-DESIGN.md](docs/UNIFIED-CMS-API-DESIGN.md) | Desain arsitektur Automation API |
 
 ---
@@ -305,7 +306,7 @@ Internal project — proprietary license.
 - Supabase: `~/docker/supabase/supabase-1.26.05/docker`
 
 **Dokumentasi:**
-- [Panduan Lengkap](PANDUAN-PENGGUNAAN.md)
+- [Panduan Lengkap](docs/PANDUAN-PENGGUNAAN.md)
 - [API Integration](docs/API-INTEGRATION.md)
 - [Deployment Runbook](docs/DEPLOYMENT-TENANT-API.md)
 
