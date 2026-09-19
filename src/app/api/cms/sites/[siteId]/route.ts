@@ -23,10 +23,15 @@ export async function DELETE(_request: Request, { params }: { params: Promise<{ 
   if (!user) return NextResponse.json({ error: "Unauthenticated" }, { status: 401 });
   const siteId = (await params).siteId;
   if (!z.string().uuid().safeParse(siteId).success) return NextResponse.json({ error: "Site ID tidak valid." }, { status: 400 });
-  
+
   // Use admin client to bypass RLS
   const adminDb = createAdminClient().schema("artikel");
-  
+
+  // Gerbang lapis aplikasi: admin site ini, atau admin global.
+  // delete_site di DB juga memverifikasi ulang lewat actor_id.
+  const { data: adminRole } = await adminDb.from("user_roles").select("id").eq("user_id", user.id).eq("role", "admin").eq("is_active", true).or(`site_id.eq.${siteId},site_id.is.null`).maybeSingle();
+  if (!adminRole) return NextResponse.json({ error: "Hanya admin website ini yang boleh menghapus." }, { status: 403 });
+
   // Check dependencies
   const [articles, categories, tags] = await Promise.all([
     adminDb.from("articles").select("id", { count: "exact", head: true }).eq("site_id", siteId),
@@ -45,8 +50,7 @@ export async function DELETE(_request: Request, { params }: { params: Promise<{ 
     }, { status: 409 });
   }
   
-  // Use raw SQL to delete site with session_replication_role = replica to disable triggers
-  const { error } = await adminDb.rpc("delete_site", { site_id: siteId });
+  const { error } = await adminDb.rpc("delete_site", { site_id: siteId, actor_id: user.id });
   
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
   
