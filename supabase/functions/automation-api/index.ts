@@ -21,9 +21,15 @@ type ArticlePayload = {
   published_at?: string;
 };
 
-function json(body: unknown, status: number) {
-  return new Response(JSON.stringify(body), { status, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+function json(body: unknown, status: number, extraHeaders?: HeadersInit) {
+  return new Response(JSON.stringify(body), { status, headers: { ...corsHeaders, "Content-Type": "application/json", ...extraHeaders } });
 }
+
+const rawMaxRequests = Number.parseInt(Deno.env.get("ARTIKEL_RATE_LIMIT_REQUESTS") ?? "120", 10);
+const rawWindowSeconds = Number.parseInt(Deno.env.get("ARTIKEL_RATE_LIMIT_WINDOW_SECONDS") ?? "60", 10);
+const rateLimitRequests = Number.isFinite(rawMaxRequests) && rawMaxRequests > 0 ? rawMaxRequests : 120;
+const rateLimitWindowSeconds = Number.isFinite(rawWindowSeconds) && rawWindowSeconds > 0 ? rawWindowSeconds : 60;
+type RateLimitResult = { allowed: boolean; remaining: number; reset_at: string };
 
 async function keyHash(key: string, pepper: string) {
   const hash = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(`${key}:${pepper}`));
@@ -54,11 +60,34 @@ serve(async (request) => {
   const siteActive = site?.is_active;
   if (!keyRecord || !siteActive || !keyRecord.created_by) return json({ error: "Invalid or inactive API key" }, 401);
 
+  // Rate limit ber-basis DB, fail-closed — mengikuti pola src/lib/public-api.ts.
+  const { data: rawLimit, error: limitError } = await supabase.rpc("consume_api_key_rate_limit", {
+    api_key_id: keyRecord.id,
+    max_requests: rateLimitRequests,
+    window_seconds: rateLimitWindowSeconds,
+  });
+  const limit = (Array.isArray(rawLimit) ? rawLimit[0] : rawLimit) as RateLimitResult | null;
+  if (limitError || !limit) {
+    console.error("Automation API rate limit error", limitError);
+    return json({ error: "Rate limit tidak dapat diproses" }, 500);
+  }
+  const rateHeaders: Record<string, string> = {
+    "X-RateLimit-Limit": String(rateLimitRequests),
+    "X-RateLimit-Remaining": String(limit.remaining),
+    "X-RateLimit-Reset": String(Math.ceil(new Date(limit.reset_at).getTime() / 1000)),
+  };
+  if (!limit.allowed) {
+    return json({ error: "Too many requests" }, 429, {
+      ...rateHeaders,
+      "Retry-After": String(Math.max(1, Math.ceil((new Date(limit.reset_at).getTime() - Date.now()) / 1000))),
+    });
+  }
+
   if (request.method === "GET") {
     return json({
       success: true,
       site: { id: site.id, name: site.name, domain: site.domain, slug: site.slug },
-    }, 200);
+    }, 200, rateHeaders);
   }
 
   const payload = await request.json().catch(() => null) as ArticlePayload | null;
@@ -91,6 +120,6 @@ serve(async (request) => {
     success: true,
     site: site && { id: site.id, name: site.name, domain: site.domain, slug: site.slug },
     data,
-  }, 200);
+  }, 200, rateHeaders);
 });
 
