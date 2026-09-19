@@ -18,4 +18,22 @@ async function resolveSiteId(supabase: SupabaseClient, storagePath: string) {
 }
 
 export async function GET() { const { supabase, user } = await authenticatedClient(); if (!user) return NextResponse.json({ error: "Unauthenticated" }, { status: 401 }); const { data, error } = await supabase.schema("artikel").from("media_assets").select("id, site_id, storage_path, file_name, mime_type, file_size, alt_text, created_at").order("created_at", { ascending: false }); return error ? NextResponse.json({ error: error.message }, { status: 400 }) : NextResponse.json({ data }); }
-export async function POST(request: Request) { const { supabase, user } = await authenticatedClient(); if (!user) return NextResponse.json({ error: "Unauthenticated" }, { status: 401 }); const parsed = createSchema.safeParse(await request.json()); if (!parsed.success) return NextResponse.json({ error: "Metadata media tidak valid." }, { status: 400 }); const input = parsed.data; const siteId = await resolveSiteId(supabase, input.storagePath); if (!siteId) return NextResponse.json({ error: "Website pemilik media tidak dikenali dari path upload." }, { status: 400 }); const { data, error } = await supabase.schema("artikel").from("media_assets").upsert({ site_id: siteId, storage_path: input.storagePath, file_name: input.fileName, mime_type: input.mimeType, file_size: input.fileSize, alt_text: input.altText, created_by: user.id }, { onConflict: "storage_path" }).select("id, site_id, storage_path, file_name, mime_type, file_size, alt_text, created_at").single(); return error ? NextResponse.json({ error: error.message }, { status: 400 }) : NextResponse.json({ data }, { status: 201 }); }
+export async function POST(request: Request) {
+  const { supabase, user } = await authenticatedClient();
+  if (!user) return NextResponse.json({ error: "Unauthenticated" }, { status: 401 });
+  const parsed = createSchema.safeParse(await request.json());
+  if (!parsed.success) return NextResponse.json({ error: "Metadata media tidak valid." }, { status: 400 });
+  const input = parsed.data;
+  const siteId = await resolveSiteId(supabase, input.storagePath);
+  if (!siteId) return NextResponse.json({ error: "Website pemilik media tidak dikenali dari path upload." }, { status: 400 });
+
+  // upsert onConflict: storage_path bisa menimpa baris milik user lain kalau
+  // path-nya ditebak/diketahui. Verifikasi kepemilikan sebelum menulis.
+  const { data: existing } = await supabase.schema("artikel").from("media_assets").select("id, created_by").eq("storage_path", input.storagePath).maybeSingle();
+  if (existing && existing.created_by !== user.id) {
+    return NextResponse.json({ error: "Media pada path ini milik pengguna lain." }, { status: 409 });
+  }
+
+  const { data, error } = await supabase.schema("artikel").from("media_assets").upsert({ site_id: siteId, storage_path: input.storagePath, file_name: input.fileName, mime_type: input.mimeType, file_size: input.fileSize, alt_text: input.altText, created_by: user.id }, { onConflict: "storage_path" }).select("id, site_id, storage_path, file_name, mime_type, file_size, alt_text, created_at").single();
+  return error ? NextResponse.json({ error: error.message }, { status: 400 }) : NextResponse.json({ data }, { status: 201 });
+}

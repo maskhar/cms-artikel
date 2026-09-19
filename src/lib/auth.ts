@@ -1,7 +1,9 @@
 import { NextResponse } from "next/server";
+import { cookies } from "next/headers";
 import type { SupabaseClient, User } from "@supabase/supabase-js";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
+import { SESSION_DURATION_MS, SESSION_TIMESTAMP_KEY } from "@/lib/session-policy";
 
 export type CmsRole = "admin" | "editor" | "writer";
 type ServerClient = Awaited<ReturnType<typeof createClient>>;
@@ -16,6 +18,17 @@ export async function requireUser(): Promise<AuthResult> {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return deny("Unauthenticated", 401);
+
+  // Rute API tidak dilewati proxy.ts (matcher-nya mengecualikan /api), jadi
+  // kebijakan 6 jam ditegakkan lagi di sini pakai cookie httpOnly yang sama.
+  const cookieStore = await cookies();
+  const cookieStart = cookieStore.get(SESSION_TIMESTAMP_KEY)?.value;
+  if (cookieStart && Date.now() - parseInt(cookieStart, 10) >= SESSION_DURATION_MS) {
+    await supabase.auth.signOut();
+    cookieStore.delete(SESSION_TIMESTAMP_KEY);
+    return deny("Sesi Anda telah berakhir setelah 6 jam. Silakan masuk kembali.", 401);
+  }
+
   return { user, supabase, response: null };
 }
 
