@@ -229,23 +229,32 @@ export default function ArticlesPage() {
                   className="mt-1 size-4"
                 />
                 <div className="min-w-0 flex-1">
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="min-w-0">
-                      <Link
-                        href={`/articles/${article.id}`}
-                        className="truncate font-bold hover:text-[#B01519]"
+                  <Link
+                    href={`/articles/${article.id}`}
+                    className="block truncate font-bold hover:text-[#B01519]"
+                  >
+                    {article.title}
+                  </Link>
+                  <p className="mt-1 truncate text-xs text-slate-400">
+                    /{article.slug}
+                  </p>
+                  <div className="mt-3 flex flex-wrap items-center justify-between gap-3">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className="text-sm text-slate-500">
+                        {article.categories?.[0]?.name ?? "Tanpa kategori"}
+                      </span>
+                      <span
+                        className={`rounded-full px-2.5 py-1 text-xs font-bold ${statusStyle[article.status] ?? statusStyle.draft}`}
                       >
-                        {article.title}
-                      </Link>
-                      <p className="mt-1 truncate text-xs text-slate-400">
-                        /{article.slug}
-                      </p>
+                        {statusLabel[article.status] ?? article.status}
+                      </span>
                     </div>
-                    <div className="flex gap-1">
+                    <div className="-mr-2 flex shrink-0 gap-1">
                       <Link
                         href={`/articles/${article.id}`}
                         className="rounded-lg p-2 text-slate-500 hover:bg-slate-100"
                         title="Edit"
+                        aria-label={`Edit ${article.title}`}
                       >
                         <Edit3 size={16} />
                       </Link>
@@ -253,6 +262,7 @@ export default function ArticlesPage() {
                         onClick={() => bulk("archive", [article.id])}
                         className="rounded-lg p-2 text-slate-500 hover:bg-slate-100"
                         title="Archive"
+                        aria-label={`Archive ${article.title}`}
                       >
                         <Archive size={16} />
                       </button>
@@ -260,20 +270,11 @@ export default function ArticlesPage() {
                         onClick={() => bulk("delete", [article.id])}
                         className="rounded-lg p-2 text-red-600 hover:bg-red-50"
                         title="Delete"
+                        aria-label={`Delete ${article.title}`}
                       >
                         <Trash2 size={16} />
                       </button>
                     </div>
-                  </div>
-                  <div className="mt-3 flex items-center justify-between gap-3">
-                    <span className="text-sm text-slate-500">
-                      {article.categories?.[0]?.name ?? "Tanpa kategori"}
-                    </span>
-                    <span
-                      className={`rounded-full px-2.5 py-1 text-xs font-bold ${statusStyle[article.status] ?? statusStyle.draft}`}
-                    >
-                      {statusLabel[article.status] ?? article.status}
-                    </span>
                   </div>
                 </div>
               </div>
