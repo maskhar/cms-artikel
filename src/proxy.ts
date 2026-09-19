@@ -10,9 +10,13 @@ const supabaseHost = "supabase.carubra.com";
 // ke script pihak ketiga mana pun. Header lain yang tak butuh nonce (HSTS, X-Frame-Options,
 // dst) tetap statis di next.config.ts.
 function buildCsp(nonce: string) {
+  // 'unsafe-eval' HANYA di dev: React mode development memakai eval() untuk
+  // rekonstruksi stack trace / fitur debug. React produksi tak pernah pakai eval,
+  // jadi build produksi tetap tanpa 'unsafe-eval'.
+  const devEval = process.env.NODE_ENV === "production" ? "" : " 'unsafe-eval'";
   return [
     "default-src 'self'",
-    `script-src 'self' 'nonce-${nonce}' 'strict-dynamic'`,
+    `script-src 'self' 'nonce-${nonce}' 'strict-dynamic'${devEval}`,
     // 'unsafe-inline' cuma untuk style-src: satu komponen pakai style={{}} inline
     // (atribut style, bukan <style> — nonce tidak berlaku di situ).
     "style-src 'self' 'unsafe-inline'",
