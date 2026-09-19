@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { requireSiteRole } from "@/lib/auth";
 
 export async function PATCH(request: Request, { params }: { params: Promise<{ siteId: string }> }) {
   const supabase = await createClient();
@@ -18,19 +19,17 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ si
 }
 
 export async function DELETE(_request: Request, { params }: { params: Promise<{ siteId: string }> }) {
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return NextResponse.json({ error: "Unauthenticated" }, { status: 401 });
   const siteId = (await params).siteId;
   if (!z.string().uuid().safeParse(siteId).success) return NextResponse.json({ error: "Site ID tidak valid." }, { status: 400 });
 
+  // Gerbang lapis aplikasi sebelum menyentuh service-role client.
+  // delete_site di DB memverifikasi ulang lewat actor_id.
+  const session = await requireSiteRole(siteId, ["admin"], "Hanya admin website ini yang boleh menghapus.");
+  if (session.response) return session.response;
+  const user = session.user;
+
   // Use admin client to bypass RLS
   const adminDb = createAdminClient().schema("artikel");
-
-  // Gerbang lapis aplikasi: admin site ini, atau admin global.
-  // delete_site di DB juga memverifikasi ulang lewat actor_id.
-  const { data: adminRole } = await adminDb.from("user_roles").select("id").eq("user_id", user.id).eq("role", "admin").eq("is_active", true).or(`site_id.eq.${siteId},site_id.is.null`).maybeSingle();
-  if (!adminRole) return NextResponse.json({ error: "Hanya admin website ini yang boleh menghapus." }, { status: 403 });
 
   // Check dependencies
   const [articles, categories, tags] = await Promise.all([

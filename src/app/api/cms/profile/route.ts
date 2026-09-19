@@ -1,24 +1,16 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { createClient } from "@/lib/supabase/server";
+import { requireGlobalAdmin } from "@/lib/auth";
 
 const updateProfileSchema = z.object({
   userId: z.string().uuid(),
   fullName: z.string().min(1).max(255)
 });
 
-async function requireGlobalAdmin() {
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return null;
-  const { data: role } = await createAdminClient().schema("artikel").from("user_roles").select("id").eq("user_id", user.id).eq("role", "admin").eq("is_active", true).is("site_id", null).maybeSingle();
-  return role ? user : null;
-}
-
 export async function PATCH(request: Request) {
-  const currentUser = await requireGlobalAdmin();
-  if (!currentUser) return NextResponse.json({ error: "Admin global diperlukan." }, { status: 403 });
+  const session = await requireGlobalAdmin();
+  if (session.response) return session.response;
 
   const parsed = updateProfileSchema.safeParse(await request.json());
   if (!parsed.success) return NextResponse.json({ error: "Data tidak valid." }, { status: 400 });

@@ -1,13 +1,15 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { createClient } from "@/lib/supabase/server";
+import { isGlobalAdmin } from "@/lib/auth";
+import { sanitizeHtmlField } from "@/lib/sanitize-html";
 import { slugPattern } from "@/lib/slug";
 
 const updateSchema = z.object({
   title: z.string().trim().min(1).max(180),
   slug: z.string().trim().regex(slugPattern),
   excerpt: z.string().max(500),
-  content: z.string(),
+  content: z.string().transform(sanitizeHtmlField),
   seoTitle: z.string().max(180),
   metaDescription: z.string().max(320),
   featuredImagePath: z.string().max(500).nullable(),
@@ -61,8 +63,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ ar
   if (existingError) return NextResponse.json({ error: "Artikel tidak ditemukan." }, { status: 404 });
   const input = parsed.data;
   if (input.publishScope === "all_active_sites") {
-    const { data: globalAdmin } = await supabase.schema("artikel").from("user_roles").select("user_id").eq("user_id", user.id).eq("role", "admin").eq("is_active", true).is("site_id", null).maybeSingle();
-    if (!globalAdmin) return NextResponse.json({ error: "Hanya admin global yang dapat menerbitkan ke semua website." }, { status: 403 });
+    if (!await isGlobalAdmin(user.id)) return NextResponse.json({ error: "Hanya admin global yang dapat menerbitkan ke semua website." }, { status: 403 });
   }
   const { error } = await supabase.schema("artikel").from("articles").update({ ...(input.publishScope ? { publish_scope: input.publishScope } : {}), title: input.title, slug: input.slug, excerpt: input.excerpt, content: input.content, seo_title: input.seoTitle, meta_description: input.metaDescription, featured_image_path: input.featuredImagePath, og_image_path: input.ogImagePath }).eq("id", id);
   if (error) return NextResponse.json({ error: error.message }, { status: 400 });

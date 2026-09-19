@@ -2,6 +2,8 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { isGlobalAdmin } from "@/lib/auth";
+import { sanitizeHtmlField } from "@/lib/sanitize-html";
 import { slugPattern } from "@/lib/slug";
 
 const addonTypeSchema = z.enum(["gallery", "pdf_viewer", "image_slider", "video_embed", "call_to_action", "faq", "related_articles", "table_of_contents", "highlight_box", "file_download"]);
@@ -18,7 +20,7 @@ const articleSchema = z.object({
   title: z.string().trim().min(1).max(180),
   slug: z.string().trim().min(1).max(180).regex(slugPattern),
   excerpt: z.string().max(500).optional().default(""),
-  content: z.string().default(""),
+  content: z.string().default("").transform(sanitizeHtmlField),
   seoTitle: z.string().max(180).optional().default(""),
   metaDescription: z.string().max(320).optional().default(""),
   featuredImagePath: z.string().max(500).nullable().optional(),
@@ -59,8 +61,7 @@ export async function POST(request: Request) {
   const input = parsed.data;
   let categoryId = input.categoryId;
   if (input.publishScope === "all_active_sites") {
-    const { data: globalAdmin } = await supabase.schema("artikel").from("user_roles").select("user_id").eq("user_id", user.id).eq("role", "admin").eq("is_active", true).is("site_id", null).maybeSingle();
-    if (!globalAdmin) return NextResponse.json({ error: "Hanya admin global yang dapat menerbitkan ke semua website." }, { status: 403 });
+    if (!await isGlobalAdmin(user.id)) return NextResponse.json({ error: "Hanya admin global yang dapat menerbitkan ke semua website." }, { status: 403 });
     const admin = createAdminClient().schema("artikel");
     const { data: globalCategory, error: globalCategoryError } = await admin.from("categories").upsert({ site_id: input.siteId, name: "Global", slug: "global", description: "Kategori otomatis untuk artikel semua website." }, { onConflict: "site_id,slug" }).select("id").single();
     if (globalCategoryError || !globalCategory) return NextResponse.json({ error: globalCategoryError?.message ?? "Kategori Global tidak dapat disiapkan." }, { status: 400 });

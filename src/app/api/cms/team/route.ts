@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { createClient } from "@/lib/supabase/server";
+import { requireGlobalAdmin } from "@/lib/auth";
 
 const assignmentSchema = z.object({
   email: z.string().trim().email().transform((value) => value.toLowerCase()),
@@ -10,18 +10,10 @@ const assignmentSchema = z.object({
   role: z.enum(["admin", "editor", "writer"]),
 });
 
-async function requireGlobalAdmin() {
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return null;
-  const { data: role } = await createAdminClient().schema("artikel").from("user_roles").select("id").eq("user_id", user.id).eq("role", "admin").eq("is_active", true).is("site_id", null).maybeSingle();
-  return role ? user : null;
-}
-
 export async function GET() {
-  const currentUser = await requireGlobalAdmin(); 
-  if (!currentUser) return NextResponse.json({ error: "Admin global diperlukan. Pastikan login menggunakan dev@gmail.com atau akun admin lain." }, { status: 403 });
-  
+  const session = await requireGlobalAdmin("Admin global diperlukan. Pastikan login menggunakan dev@gmail.com atau akun admin lain.");
+  if (session.response) return session.response;
+
   const admin = createAdminClient();
   
   // Fetch roles from database
@@ -65,7 +57,8 @@ export async function GET() {
 }
 
 export async function POST(request: Request) {
-  const currentUser = await requireGlobalAdmin(); if (!currentUser) return NextResponse.json({ error: "Admin global diperlukan. Pastikan login menggunakan dev@gmail.com atau akun admin lain." }, { status: 403 });
+  const session = await requireGlobalAdmin("Admin global diperlukan. Pastikan login menggunakan dev@gmail.com atau akun admin lain.");
+  if (session.response) return session.response;
   const parsed = assignmentSchema.safeParse(await request.json());
   if (!parsed.success) return NextResponse.json({ error: "Email, website, atau role tidak valid." }, { status: 400 });
   const input = parsed.data;
