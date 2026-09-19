@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { ApiError, dbErrorResponse } from "@/lib/api-error";
 import { z } from "zod";
 import { createClient } from "@/lib/supabase/server";
 import { isGlobalAdmin } from "@/lib/auth";
@@ -24,14 +25,16 @@ async function replaceTags(supabase: Awaited<ReturnType<typeof createClient>>, a
   const uniqueTagIds = [...new Set(tagIds)];
   if (uniqueTagIds.length) {
     const { data: tags, error } = await supabase.schema("artikel").from("tags").select("id").eq("site_id", siteId).in("id", uniqueTagIds);
-    if (error || tags?.length !== uniqueTagIds.length) throw new Error("Tag tidak valid untuk website ini.");
+    if (error || tags?.length !== uniqueTagIds.length) throw new ApiError("Tag tidak valid untuk website ini.");
   }
   const relation = supabase.schema("artikel").from("article_tags");
+  // Error DB dilempar apa adanya supaya kode Postgres-nya tetap terbaca
+  // dbErrorResponse di blok catch pemanggil.
   const { error: removeError } = await relation.delete().eq("article_id", articleId);
-  if (removeError) throw new Error(removeError.message);
+  if (removeError) throw removeError;
   if (!uniqueTagIds.length) return;
   const { error: insertError } = await relation.insert(uniqueTagIds.map((tagId) => ({ article_id: articleId, tag_id: tagId })));
-  if (insertError) throw new Error(insertError.message);
+  if (insertError) throw insertError;
 }
 
 export async function GET(_request: Request, { params }: { params: Promise<{ articleId: string }> }) {
@@ -40,7 +43,7 @@ export async function GET(_request: Request, { params }: { params: Promise<{ art
   if (!user) return NextResponse.json({ error: "Unauthenticated" }, { status: 401 });
   const id = (await params).articleId;
   const articleResult = await supabase.schema("artikel").from("articles").select("id, site_id, category_id, title, slug, excerpt, content, featured_image_path, og_image_path, seo_title, meta_description, status, created_at, updated_at, categories(name), sites!articles_site_id_fkey(name, slug), article_tags(tag_id, tags(id, name, slug))").eq("id", id).single();
-  if (articleResult.error) return NextResponse.json({ error: articleResult.error.message }, { status: 404 });
+  if (articleResult.error) return dbErrorResponse(articleResult.error, undefined, 404);
   const article = articleResult.data;
   const [revisionsResult, commentsResult, rolesResult, tagsResult] = await Promise.all([
     supabase.schema("artikel").from("article_revisions").select("id, version, change_note, created_at").eq("article_id", id).order("version", { ascending: false }),
@@ -66,11 +69,11 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ ar
     if (!await isGlobalAdmin(user.id)) return NextResponse.json({ error: "Hanya admin global yang dapat menerbitkan ke semua website." }, { status: 403 });
   }
   const { error } = await supabase.schema("artikel").from("articles").update({ ...(input.publishScope ? { publish_scope: input.publishScope } : {}), title: input.title, slug: input.slug, excerpt: input.excerpt, content: input.content, seo_title: input.seoTitle, meta_description: input.metaDescription, featured_image_path: input.featuredImagePath, og_image_path: input.ogImagePath }).eq("id", id);
-  if (error) return NextResponse.json({ error: error.message }, { status: 400 });
+  if (error) return dbErrorResponse(error);
   try {
     await replaceTags(supabase, id, existing.site_id, input.tagIds);
   } catch (tagError) {
-    return NextResponse.json({ error: tagError instanceof Error ? tagError.message : "Tag gagal disimpan." }, { status: 400 });
+    return dbErrorResponse(tagError, "Tag gagal disimpan.");
   }
   return NextResponse.json({ success: true });
 }

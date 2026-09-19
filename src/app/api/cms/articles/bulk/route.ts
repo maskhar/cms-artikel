@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { dbErrorResponse } from "@/lib/api-error";
 import { z } from "zod";
 import { createClient } from "@/lib/supabase/server";
 
@@ -12,7 +13,7 @@ export async function POST(request: Request) {
   if (!parsed.success) return NextResponse.json({ error: "Payload bulk tidak valid." }, { status: 400 });
   const { ids, action, status } = parsed.data; const db = supabase.schema("artikel");
   const { data: articles, error: articleError } = await db.from("articles").select("id, site_id, status").in("id", ids);
-  if (articleError) return NextResponse.json({ error: articleError.message }, { status: 400 });
+  if (articleError) return dbErrorResponse(articleError);
   if (!articles?.length) return NextResponse.json({ error: "Artikel tidak ditemukan atau tidak dapat diakses." }, { status: 404 });
   const siteIds = [...new Set(articles.map((article) => article.site_id))];
   const { data: roles } = await db.from("user_roles").select("role, site_id").eq("user_id", user.id).eq("is_active", true).in("role", ["admin", "editor"]);
@@ -27,7 +28,7 @@ export async function POST(request: Request) {
   else if (action === "delete") query = db.from("articles").delete().in("id", ids);
   else return NextResponse.json({ error: "Status tujuan wajib dipilih." }, { status: 400 });
   const { data, error } = await query.select("id");
-  if (error) return NextResponse.json({ error: error.code === "23503" ? "Artikel masih memiliki data terkait yang mencegah delete." : error.message }, { status: 400 });
+  if (error) return error.code === "23503" ? NextResponse.json({ error: "Artikel masih memiliki data terkait yang mencegah delete." }, { status: 409 }) : dbErrorResponse(error);
   if (!data?.length) return NextResponse.json({ error: "Tidak ada artikel yang berubah. Periksa izin dan status artikel terpilih." }, { status: 409 });
   return NextResponse.json({ data: { affected: data.length } });
 }

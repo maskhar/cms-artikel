@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { ApiError, dbErrorResponse } from "@/lib/api-error";
 import { z } from "zod";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -34,14 +35,16 @@ async function replaceTags(supabase: Awaited<ReturnType<typeof createClient>>, a
   const uniqueTagIds = [...new Set(tagIds)];
   if (uniqueTagIds.length) {
     const { data: tags, error } = await supabase.schema("artikel").from("tags").select("id").eq("site_id", siteId).in("id", uniqueTagIds);
-    if (error || tags?.length !== uniqueTagIds.length) throw new Error("Tag tidak valid untuk website ini.");
+    if (error || tags?.length !== uniqueTagIds.length) throw new ApiError("Tag tidak valid untuk website ini.");
   }
   const relation = supabase.schema("artikel").from("article_tags");
+  // Error DB dilempar apa adanya (bukan dibungkus Error biasa) supaya kode
+  // Postgres-nya tetap terbaca dbErrorResponse di blok catch pemanggil.
   const { error: removeError } = await relation.delete().eq("article_id", articleId);
-  if (removeError) throw new Error(removeError.message);
+  if (removeError) throw removeError;
   if (!uniqueTagIds.length) return;
   const { error: insertError } = await relation.insert(uniqueTagIds.map((tagId) => ({ article_id: articleId, tag_id: tagId })));
-  if (insertError) throw new Error(insertError.message);
+  if (insertError) throw insertError;
 }
 
 export async function GET() {
@@ -49,7 +52,7 @@ export async function GET() {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: "Unauthenticated" }, { status: 401 });
   const { data, error } = await supabase.schema("artikel").from("articles").select("id, site_id, title, slug, status, updated_at, categories(name)").order("updated_at", { ascending: false });
-  if (error) return NextResponse.json({ error: error.message }, { status: 400 });
+  if (error) return dbErrorResponse(error);
   return NextResponse.json({ data });
 }
 export async function POST(request: Request) {
@@ -64,14 +67,14 @@ export async function POST(request: Request) {
     if (!await isGlobalAdmin(user.id)) return NextResponse.json({ error: "Hanya admin global yang dapat menerbitkan ke semua website." }, { status: 403 });
     const admin = createAdminClient().schema("artikel");
     const { data: globalCategory, error: globalCategoryError } = await admin.from("categories").upsert({ site_id: input.siteId, name: "Global", slug: "global", description: "Kategori otomatis untuk artikel semua website." }, { onConflict: "site_id,slug" }).select("id").single();
-    if (globalCategoryError || !globalCategory) return NextResponse.json({ error: globalCategoryError?.message ?? "Kategori Global tidak dapat disiapkan." }, { status: 400 });
+    if (globalCategoryError || !globalCategory) return dbErrorResponse(globalCategoryError, "Kategori Global tidak dapat disiapkan.");
     categoryId = globalCategory.id;
   }
   if (!categoryId) return NextResponse.json({ error: "Pilih kategori terlebih dahulu." }, { status: 400 });
   const { data, error } = await supabase.schema("artikel").from("articles").insert({ site_id: input.siteId, category_id: categoryId, author_id: user.id, title: input.title, slug: input.slug, excerpt: input.excerpt, content: input.content, seo_title: input.seoTitle, meta_description: input.metaDescription, featured_image_path: input.featuredImagePath ?? null, og_image_path: input.ogImagePath ?? null, publish_scope: input.publishScope }).select("id").single();
   if (error) {
     if (error.code === "23505") return NextResponse.json({ error: "Slug artikel sudah digunakan pada website ini." }, { status: 409 });
-    return NextResponse.json({ error: error.message }, { status: 400 });
+    return dbErrorResponse(error);
   }
   try {
     await replaceTags(supabase, data.id, input.siteId, input.tagIds);
@@ -86,11 +89,11 @@ export async function POST(request: Request) {
         sort_order: sortOrder,
         created_by: user.id,
       })));
-      if (addonError) throw new Error(addonError.message);
+      if (addonError) throw addonError;
     }
   } catch (writeError) {
     await supabase.schema("artikel").from("articles").delete().eq("id", data.id);
-    return NextResponse.json({ error: writeError instanceof Error ? writeError.message : "Artikel gagal disimpan." }, { status: 400 });
+    return dbErrorResponse(writeError, "Artikel gagal disimpan.");
   }
   return NextResponse.json({ data }, { status: 201 });
 }

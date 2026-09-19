@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { dbErrorResponse } from "@/lib/api-error";
 import { z } from "zod";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -13,7 +14,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ si
   const parsed = z.object({ isActive: z.boolean() }).safeParse(await request.json());
   if (!parsed.success) return NextResponse.json({ error: "Status tenant tidak valid." }, { status: 400 });
   const { data, error } = await supabase.schema("artikel").from("sites").update({ is_active: parsed.data.isActive }).eq("id", siteId).select("id, is_active").maybeSingle();
-  if (error) return NextResponse.json({ error: error.message }, { status: 400 });
+  if (error) return dbErrorResponse(error);
   if (!data) return NextResponse.json({ error: "Tenant tidak ditemukan." }, { status: 404 });
   return NextResponse.json({ data });
 }
@@ -38,7 +39,7 @@ export async function DELETE(_request: Request, { params }: { params: Promise<{ 
     adminDb.from("tags").select("id", { count: "exact", head: true }).eq("site_id", siteId),
   ]);
   const dependencyError = articles.error ?? categories.error ?? tags.error;
-  if (dependencyError) return NextResponse.json({ error: dependencyError.message }, { status: 500 });
+  if (dependencyError) return dbErrorResponse(dependencyError, undefined, 500);
   
   const dependencies = { articles: articles.count ?? 0, categories: categories.count ?? 0, tags: tags.count ?? 0 };
   if (Object.values(dependencies).some((count) => count > 0)) {
@@ -51,7 +52,7 @@ export async function DELETE(_request: Request, { params }: { params: Promise<{ 
   
   const { error } = await adminDb.rpc("delete_site", { site_id: siteId, actor_id: user.id });
   
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  if (error) return dbErrorResponse(error, undefined, 500);
   
   return NextResponse.json({ success: true });
 }

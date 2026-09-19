@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { dbErrorResponse } from "@/lib/api-error";
 import { z } from "zod";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { requireGlobalAdmin } from "@/lib/auth";
@@ -23,7 +24,7 @@ export async function PATCH(request: Request) {
       user_metadata: { full_name: fullName }
     });
 
-    if (error) return NextResponse.json({ error: error.message }, { status: 400 });
+    if (error) return dbErrorResponse(error);
     return NextResponse.json({ data: { id: data.user.id, name: fullName } });
   } catch (err) {
     return NextResponse.json({ error: "Gagal memperbarui profil." }, { status: 500 });

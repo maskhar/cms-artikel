@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { dbErrorResponse } from "@/lib/api-error";
 import { z } from "zod";
 import { createClient } from "@/lib/supabase/server";
 import type { SupabaseClient } from "@supabase/supabase-js";
@@ -17,7 +18,7 @@ async function resolveSiteId(supabase: SupabaseClient, storagePath: string) {
   return (data?.id as string | undefined) ?? null;
 }
 
-export async function GET() { const { supabase, user } = await authenticatedClient(); if (!user) return NextResponse.json({ error: "Unauthenticated" }, { status: 401 }); const { data, error } = await supabase.schema("artikel").from("media_assets").select("id, site_id, storage_path, file_name, mime_type, file_size, alt_text, created_at").order("created_at", { ascending: false }); return error ? NextResponse.json({ error: error.message }, { status: 400 }) : NextResponse.json({ data }); }
+export async function GET() { const { supabase, user } = await authenticatedClient(); if (!user) return NextResponse.json({ error: "Unauthenticated" }, { status: 401 }); const { data, error } = await supabase.schema("artikel").from("media_assets").select("id, site_id, storage_path, file_name, mime_type, file_size, alt_text, created_at").order("created_at", { ascending: false }); return error ? dbErrorResponse(error) : NextResponse.json({ data }); }
 export async function POST(request: Request) {
   const { supabase, user } = await authenticatedClient();
   if (!user) return NextResponse.json({ error: "Unauthenticated" }, { status: 401 });
@@ -35,5 +36,5 @@ export async function POST(request: Request) {
   }
 
   const { data, error } = await supabase.schema("artikel").from("media_assets").upsert({ site_id: siteId, storage_path: input.storagePath, file_name: input.fileName, mime_type: input.mimeType, file_size: input.fileSize, alt_text: input.altText, created_by: user.id }, { onConflict: "storage_path" }).select("id, site_id, storage_path, file_name, mime_type, file_size, alt_text, created_at").single();
-  return error ? NextResponse.json({ error: error.message }, { status: 400 }) : NextResponse.json({ data }, { status: 201 });
+  return error ? dbErrorResponse(error) : NextResponse.json({ data }, { status: 201 });
 }

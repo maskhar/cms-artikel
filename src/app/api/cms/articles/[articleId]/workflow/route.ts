@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { dbErrorResponse } from "@/lib/api-error";
 import { z } from "zod";
 import { createClient } from "@/lib/supabase/server";
 import { isAllowedWorkflowTransition, workflowUpdate, type WorkflowAction } from "@/lib/article-workflow";
@@ -20,8 +21,8 @@ export async function POST(request: Request, { params }: { params: Promise<{ art
   // .select() wajib: tanpa ini, RLS yang diam-diam menolak (0 baris cocok)
   // tidak mengembalikan error apa pun dan route akan membalas sukses palsu.
   const { data: updated, error } = await supabase.schema("artikel").from("articles").update(values).eq("id", id).select("id");
-  if (error) return NextResponse.json({ error: error.message }, { status: 400 });
+  if (error) return dbErrorResponse(error);
   if (!updated || updated.length === 0) return NextResponse.json({ error: "Tidak berwenang mengubah status artikel ini." }, { status: 403 });
-  if (comment) { const { error: commentError } = await supabase.schema("artikel").from("review_comments").insert({ article_id: id, author_id: user.id, body: comment, status_from: article.status, status_to: values.status }); if (commentError) return NextResponse.json({ error: commentError.message }, { status: 400 }); }
+  if (comment) { const { error: commentError } = await supabase.schema("artikel").from("review_comments").insert({ article_id: id, author_id: user.id, body: comment, status_from: article.status, status_to: values.status }); if (commentError) return dbErrorResponse(commentError); }
   return NextResponse.json({ success: true, status: values.status });
 }

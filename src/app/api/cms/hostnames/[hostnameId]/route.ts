@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { dbErrorResponse } from "@/lib/api-error";
 import { z } from "zod";
 import { isValidCmsHostname, normalizeCmsHostname } from "@/lib/cms-hostname";
 import { createClient } from "@/lib/supabase/server";
@@ -13,7 +14,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ ho
   if (!parsed.success || (parsed.data.hostname && !isValidCmsHostname(parsed.data.hostname))) return NextResponse.json({ error: "Data hostname tidak valid." }, { status: 400 });
   const values = { ...(parsed.data.hostname ? { hostname: normalizeCmsHostname(parsed.data.hostname) } : {}), ...(parsed.data.displayName ? { display_name: parsed.data.displayName } : {}), ...(parsed.data.siteId !== undefined ? { site_id: parsed.data.siteId } : {}), ...(parsed.data.isActive !== undefined ? { is_active: parsed.data.isActive } : {}) };
   const { data, error } = await supabase.schema("artikel").from("cms_hostnames").update(values).eq("id", id).eq("is_canonical", false).select("id, hostname, display_name, site_id, is_active").maybeSingle();
-  if (error) return NextResponse.json({ error: error.message }, { status: 400 });
+  if (error) return dbErrorResponse(error);
   if (!data) return NextResponse.json({ error: "Hostname tidak ditemukan atau merupakan domain canonical." }, { status: 404 });
   return NextResponse.json({ data });
 }
@@ -25,7 +26,7 @@ export async function DELETE(_request: Request, { params }: { params: Promise<{ 
   const id = (await params).hostnameId;
   if (!z.string().uuid().safeParse(id).success) return NextResponse.json({ error: "Hostname ID tidak valid." }, { status: 400 });
   const { data, error } = await supabase.schema("artikel").from("cms_hostnames").delete().eq("id", id).eq("is_canonical", false).select("id").maybeSingle();
-  if (error) return NextResponse.json({ error: error.message }, { status: 400 });
+  if (error) return dbErrorResponse(error);
   if (!data) return NextResponse.json({ error: "Hostname tidak ditemukan atau merupakan domain canonical." }, { status: 404 });
   return NextResponse.json({ success: true });
 }

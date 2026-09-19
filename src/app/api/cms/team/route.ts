@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { dbErrorResponse } from "@/lib/api-error";
 import { z } from "zod";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { requireGlobalAdmin } from "@/lib/auth";
@@ -19,7 +20,7 @@ export async function GET() {
   // Fetch roles from database
   const { data: roles, error } = await admin.schema("artikel").from("user_roles").select("id, user_id, site_id, role, is_active, sites(name, domain)").order("role");
   
-  if (error) return NextResponse.json({ error: error.message }, { status: 400 });
+  if (error) return dbErrorResponse(error);
   
   // Get all unique user_ids from roles
   const userIds = [...new Set((roles ?? []).map(role => role.user_id))];
@@ -77,13 +78,13 @@ export async function POST(request: Request) {
   const siteIds = [...new Set(siteIdsInput)];
   if (input.role !== "admin") {
     const { data: validSites, error: siteError } = await admin.schema("artikel").from("sites").select("id").in("id", siteIds).eq("is_active", true);
-    if (siteError) return NextResponse.json({ error: siteError.message }, { status: 400 });
+    if (siteError) return dbErrorResponse(siteError);
     if ((validSites ?? []).length !== siteIds.length) return NextResponse.json({ error: "Satu atau lebih website tidak valid atau nonaktif." }, { status: 400 });
   }
   const assignments: Array<{ user_id: string; site_id: string | null; role: "admin" | "editor" | "writer"; is_active: boolean }> = input.role === "admin"
     ? [{ user_id: target.id, site_id: null, role: input.role, is_active: true }]
     : siteIds.map((siteId) => ({ user_id: target.id, site_id: siteId, role: input.role, is_active: true }));
   const { data, error } = await admin.schema("artikel").from("user_roles").upsert(assignments as never, { onConflict: "user_id,site_id,role" }).select("id, site_id, role, is_active");
-  if (error) return NextResponse.json({ error: error.message }, { status: 400 });
+  if (error) return dbErrorResponse(error);
   return NextResponse.json({ data, created: data?.length ?? 0 }, { status: 201 });
 }
