@@ -217,7 +217,7 @@ export default function ArticleDetailPage({
             </span>
           </div>
           <div className="mt-4 grid gap-4 sm:mt-7 sm:gap-6 xl:grid-cols-[minmax(0,1fr)_380px]">
-            <section className="space-y-4 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:space-y-5 md:p-7">
+            <section className="min-w-0 space-y-4 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:space-y-5 md:p-7">
               <label className="block text-sm font-medium">
                 Judul
                 <input
@@ -297,7 +297,7 @@ export default function ArticleDetailPage({
                 <Save size={17} /> Simpan perubahan
               </button>
             </section>
-            <aside className="space-y-5 xl:sticky xl:top-7 xl:max-h-[calc(100vh-3.5rem)] xl:self-start xl:overflow-y-auto xl:pr-1">
+            <aside className="min-w-0 space-y-5 xl:sticky xl:top-7 xl:max-h-[calc(100vh-3.5rem)] xl:self-start xl:overflow-y-auto xl:pr-1">
               <section className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5">
               <h2 className="font-semibold">Workflow dan review</h2>
             <textarea

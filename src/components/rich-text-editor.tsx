@@ -75,7 +75,7 @@ export function RichTextEditor({ value, onChange, siteId, mediaFolder, placehold
     editor.chain().focus().setImage({ src: data.signedUrl, alt: file.name.replace(/\.[^.]+$/, ""), title: path, width: 960 }).run();
   }
 
-  return <div onDragOver={(event) => { if (event.dataTransfer.types.includes("application/x-artikel-addon")) event.preventDefault(); }} onDrop={dropAddon} className={`${fullscreen ? "fixed inset-3 z-[100] flex flex-col md:inset-6" : ""} overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm`}>
+  return <div onDragOver={(event) => { if (event.dataTransfer.types.includes("application/x-artikel-addon")) event.preventDefault(); }} onDrop={dropAddon} className={`${fullscreen ? "fixed inset-3 z-[100] flex flex-col md:inset-6" : ""} min-w-0 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm`}>
     <div className="sticky top-0 z-10 overflow-x-auto border-b border-slate-200 bg-white/95 p-2 backdrop-blur">
       <div className="flex min-w-max items-center gap-1 sm:min-w-0 sm:flex-wrap">
         <select aria-label="Gaya teks" defaultValue="paragraph" onChange={(event) => action(() => { const type = event.target.value; if (type === "h1") editor?.chain().focus().toggleHeading({ level: 1 }).run(); else if (type === "h2") editor?.chain().focus().toggleHeading({ level: 2 }).run(); else if (type === "h3") editor?.chain().focus().toggleHeading({ level: 3 }).run(); else editor?.chain().focus().setParagraph().run(); })} className="h-9 rounded-lg border border-slate-200 bg-white px-2 text-sm font-medium outline-none focus:ring-2 focus:ring-[#CE181E]"><option value="paragraph">Paragraf</option><option value="h1">Heading 1</option><option value="h2">Heading 2</option><option value="h3">Heading 3</option></select>
