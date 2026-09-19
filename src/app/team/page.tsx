@@ -159,7 +159,7 @@ export default function TeamPage() {
                     {item.user_exists !== false && (
                       <>
                         <p className="mt-1 text-sm text-slate-500 break-all">{item.email}</p>
-                        <p className="mt-0.5 text-xs text-slate-400">
+                        <p className="mt-0.5 break-words text-xs text-slate-400">
                           {item.sites?.[0]?.name ?? "Semua website"}
                           {item.sites?.[0]?.domain ? ` · ${item.sites[0].domain}` : ""}
                         </p>
@@ -201,7 +201,7 @@ export default function TeamPage() {
                         setEditingUserId(item.user_id);
                         setEditName(item.name || "");
                       }}
-                      className="rounded-xl border p-2 hover:bg-slate-50"
+                      className="grid min-h-11 min-w-11 place-items-center rounded-xl border hover:bg-slate-50"
                       title="Edit profil"
                     >
                       <UserPen size={17}/>
@@ -228,7 +228,7 @@ export default function TeamPage() {
                     <button 
                       type="button" 
                       onClick={() => void updateRole(item, item.role, item.site_id, !item.is_active)} 
-                      className="rounded-xl border p-2 hover:bg-slate-50"
+                      className="grid min-h-11 min-w-11 place-items-center rounded-xl border hover:bg-slate-50"
                       title={item.is_active ? "Nonaktifkan" : "Aktifkan"}
                     >
                       <Power size={17}/>
@@ -236,7 +236,7 @@ export default function TeamPage() {
                     <button 
                       type="button" 
                       onClick={() => void removeRole(item)} 
-                      className="rounded-xl border p-2 text-red-600 hover:bg-red-50"
+                      className="grid min-h-11 min-w-11 place-items-center rounded-xl border text-red-600 hover:bg-red-50"
                       title="Hapus"
                     >
                       <Trash2 size={17}/>

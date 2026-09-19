@@ -38,7 +38,7 @@ const examples = {
 
 function CodeBlock({ children }: { children: string }) {
   return (
-    <pre className="mt-4 overflow-x-auto rounded-2xl bg-slate-950 p-4 text-xs leading-6 text-slate-200">
+    <pre className="mt-4 min-w-0 overflow-x-auto rounded-2xl bg-slate-950 p-4 text-xs leading-6 text-slate-200">
       <code>{children}</code>
     </pre>
   );
@@ -88,7 +88,7 @@ function ApiDocsContent() {
           </section>
 
           <div className="mt-5 grid gap-5 xl:grid-cols-[minmax(0,1fr)_320px]">
-            <div className="space-y-5">
+            <div className="min-w-0 space-y-5">
               {/* Public Read API */}
               <section className="rounded-3xl border-2 border-blue-200 bg-gradient-to-br from-blue-50 to-white p-5 shadow-sm sm:p-7">
                 <div className="flex items-center gap-2">
@@ -100,11 +100,11 @@ function ApiDocsContent() {
                 <p className="mt-2 text-sm leading-6 text-slate-600">
                   Untuk membaca artikel yang sudah published dari website Anda.
                   Base URL{" "}
-                  <code className="rounded bg-slate-100 px-1.5 py-1">
+                  <code className="break-all rounded bg-slate-100 px-1.5 py-1">
                     https://cms.carubra.com
                   </code>
                   . Header{" "}
-                  <code className="rounded bg-slate-100 px-1.5 py-1">
+                  <code className="break-words rounded bg-slate-100 px-1.5 py-1">
                     x-artikel-key
                   </code>
                   .
@@ -143,11 +143,11 @@ function ApiDocsContent() {
                   Push artikel dari sistem eksternal (WordPress, custom CMS, dll).
                   Mendukung create dan update dengan single endpoint (upsert). Base
                   URL{" "}
-                  <code className="rounded bg-slate-100 px-1.5 py-1">
+                  <code className="break-all rounded bg-slate-100 px-1.5 py-1">
                     https://supabase.carubra.com/functions/v1
                   </code>
                   . Header{" "}
-                  <code className="rounded bg-slate-100 px-1.5 py-1">
+                  <code className="break-words rounded bg-slate-100 px-1.5 py-1">
                     x-api-key
                   </code>
                   .
@@ -246,7 +246,7 @@ function ApiDocsContent() {
               </section>
             </div>
 
-            <aside className="space-y-5">
+            <aside className="min-w-0 space-y-5">
               <section className="rounded-3xl border border-red-100 bg-red-50 p-5">
                 <div className="flex items-center gap-2 font-bold text-red-900">
                   <ShieldCheck size={18} /> Keamanan
@@ -255,8 +255,9 @@ function ApiDocsContent() {
                   <li>Key hanya server-side.</li>
                   <li>Key terpisah per environment.</li>
                   <li>
-                    API berbeda: <code>x-artikel-key</code> (read) vs{" "}
-                    <code>x-api-key</code> (automation).
+                    API berbeda: <code className="break-words">x-artikel-key</code>{" "}
+                    (read) vs <code className="break-words">x-api-key</code>{" "}
+                    (automation).
                   </li>
                   <li>Gunakan HTTPS.</li>
                   <li>Rotasi mengganti secret pada record sama.</li>
@@ -296,8 +297,9 @@ function ApiDocsContent() {
                 </div>
                 <p className="mt-3 text-sm leading-6 text-slate-600">
                   Default 120 request per 60 detik. Baca header{" "}
-                  <code>X-RateLimit-Remaining</code> dan hormati{" "}
-                  <code>Retry-After</code> saat status 429.
+                  <code className="break-words">X-RateLimit-Remaining</code> dan
+                  hormati <code className="break-words">Retry-After</code> saat
+                  status 429.
                 </p>
               </section>
 

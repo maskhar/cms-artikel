@@ -128,7 +128,7 @@ export default function ApiKeysPage() {
               <span className="rounded-2xl bg-red-100 p-3 text-[#B01519]">
                 <ShieldCheck size={22} />
               </span>
-              <div>
+              <div className="min-w-0">
                 <p className="text-sm font-semibold text-[#CE181E]">
                   Integrasi aman
                 </p>
@@ -151,7 +151,7 @@ export default function ApiKeysPage() {
                 Nilai penuh hanya tampil sekali.
               </p>
               <div className="mt-4 flex flex-col gap-2 sm:flex-row">
-                <code className="min-w-0 flex-1 overflow-x-auto rounded-xl border border-amber-200 bg-white p-3 text-sm text-slate-800">
+                <code className="min-w-0 flex-1 break-all rounded-xl border border-amber-200 bg-white p-3 text-sm text-slate-800">
                   {revealedKey.value}
                 </code>
                 <button
@@ -190,7 +190,7 @@ export default function ApiKeysPage() {
                             {key.revoked_at ? "Revoked" : "Aktif"}
                           </span>
                         </div>
-                        <p className="mt-1 text-sm text-slate-500">
+                        <p className="mt-1 break-words text-sm text-slate-500">
                           {key.sites?.[0] ? `${key.sites[0].name} · ${key.sites[0].domain}` : "Website"} ·{" "}
                           <span className="font-mono">
                             {key.key_prefix}••••
