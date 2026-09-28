@@ -24,11 +24,24 @@
 -- pesan kesalahan. Kekacauan senyap lebih mahal daripada kehilangan label yang
 -- bisa dibuat ulang dalam sepuluh detik.
 --
--- Artikel yatim tidak bocor ke pembaca publik, dan itu sudah dijamin mekanisme
--- yang ada: Public Read API membaca dari artikel.article_sites yang difilter
--- site_id milik API key, sedangkan article_sites_site_id_fkey adalah CASCADE —
--- baris distribusinya ikut hilang bersama site. Tidak ada yang perlu ditambah
--- di sini untuk itu; disebut supaya tidak ada yang "mengamankan" ulang nanti.
+-- Artikel yatim tidak boleh bocor ke pembaca publik, dan ini TIDAK gratis.
+-- Public Read API membaca artikel.article_sites yang difilter site_id milik API
+-- key. article_sites_site_id_fkey memang CASCADE, tapi itu hanya membuang baris
+-- distribusi milik site yang dihapus — distribusi artikel yang sama ke website
+-- LAIN selamat, dan statusnya tetap 'published'.
+--
+-- Dibuktikan pada data produksi (dry-run 28 September 2026): kedua artikel
+-- Buzzerhood tersebar ke 4 website. Sesudah Buzzerhood dihapus, 3 baris
+-- distribusi 'published' tetap berdiri, sehingga artikel yang di CMS sudah jadi
+-- draf yatim masih tersaji lewat API key Soundpub, Utero Academy dan Utero
+-- Indonesia. Versi pertama migrasi ini mengklaim CASCADE sudah cukup; klaim itu
+-- salah untuk artikel multi-site, dan hanya terlihat setelah dijalankan pada
+-- data nyata — data uji lokal kebetulan hanya berisi artikel satu-website.
+--
+-- Karena itu delete_site menghapus SELURUH baris distribusi artikel yang
+-- diyatimkan, bukan mengandalkan CASCADE. Artikel tanpa pemilik tidak punya
+-- alasan untuk tetap terbit di mana pun; saat dipungut kembali, distribusinya
+-- dibangun ulang oleh sync_article_distributions.
 --
 -- Yang boleh melihat artikel yatim: ADMIN SAJA (dikonfirmasi 28 September 2026).
 -- Berbeda dari galeri di #280002 yang dibuka ke semua anggota CMS, karena isi
@@ -159,6 +172,16 @@ begin
   where a.site_id = delete_site.site_id;
 
   set local artikel.orphaning = 'off';
+
+  -- Cabut artikel yatim dari SEMUA website, bukan hanya yang dihapus.
+  -- CASCADE hanya membuang distribusi milik site ini; sisanya tetap berdiri
+  -- dengan status 'published' dan terus disajikan API key website lain (lihat
+  -- catatan bukti di kepala file). Artikel tanpa pemilik tidak boleh terbit di
+  -- mana pun. Dijalankan SESUDAH update di atas supaya `site_id is null` sudah
+  -- menandai persis artikel yang baru diyatimkan, bukan artikel yatim lama.
+  delete from artikel.article_sites d
+  using artikel.articles a
+  where d.article_id = a.id and a.site_id is null;
 
   -- Tag site ikut terhapus lewat cascade sites -> tags -> article_tags, jadi
   -- artikel yatim kehilangan tag-nya. Disengaja: tag adalah label yang murah

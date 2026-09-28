@@ -257,12 +257,8 @@ migrasi ini hanya muncul saat dijalankan, tidak satu pun terlihat dari DDL-nya.
 
 - **Artikel selamat dan bisa disunting lagi.** Sesudah site dihapus: `site_id`
   null, `status` `draft`, kategori `Tanpa Kategori`, tag dan baris distribusi 0.
-- **Tidak keluar di website mana pun**, termasuk yang lain. Jaminannya bukan
-  logika baru: Read API publik membaca `artikel.article_sites`
-  ([`v1/articles/route.ts:17`](../src/app/api/v1/articles/route.ts:17) memfilter
-  `site_id` milik API key), dan `article_sites_site_id_fkey` sudah CASCADE sejak
-  #120001. Artikel yatim kehilangan seluruh baris distribusinya, jadi tak ada
-  API key yang bisa menjangkaunya.
+- **Tidak keluar di website mana pun**, termasuk yang lain — tapi ini **tidak
+  gratis**, dan versi pertama migrasi ini salah soal itu. Lihat kotak di bawah.
 - **Visibilitas benar-benar admin saja** — diuji per-peran, bukan disimpulkan:
 
   | Siapa | Baris terlihat |
@@ -289,6 +285,38 @@ Marker sesi `artikel.orphaning` dipakai untuk membedakan `delete_site` dari
 UPDATE biasa. `current_user` tidak bisa: SECURITY DEFINER membuat keduanya
 identik. `set local` otomatis bersih di akhir transaksi, jadi tidak bisa bocor
 antar-request.
+
+#### ⚠️ Yang hanya ketahuan saat dry-run di produksi — artikel multi-site tetap terbit
+
+Versi pertama #280003 (commit `a87459c`) mengklaim, di kepala filenya dan di
+ledger ini, bahwa artikel yatim otomatis tidak terbaca publik karena
+`article_sites_site_id_fkey` CASCADE. **Klaim itu salah untuk artikel
+multi-site**, dan uji lokal tidak menangkapnya karena data ujinya kebetulan
+hanya berisi artikel satu-website — `distribusi_sisa` nol, jaminan tampak
+terpenuhi sendiri.
+
+Dry-run terhadap produksi menunjukkan sebaliknya. Kedua artikel Buzzerhood
+tersebar ke 4 website. Sesudah Buzzerhood dihapus:
+
+| | Sebelum perbaikan | Sesudah |
+|---|---|---|
+| Baris distribusi artikel yatim | **6** (3 `published`, 3 `archived`) | **0** |
+| Terbaca API key website lain | Soundpub 1, Utero Academy 1, Utero Indonesia 1 | 0 |
+
+CASCADE hanya membuang distribusi milik site yang dihapus; distribusi ke website
+lain berdiri dengan status `published`. Akibatnya artikel yang di CMS sudah jadi
+draf tak bertuan **tetap tersaji di tiga situs**, dan admin tak punya jalan
+melihatnya di sana karena artikelnya sendiri sudah yatim.
+
+Diperbaiki dengan menghapus **seluruh** baris distribusi artikel yang diyatimkan
+di dalam `delete_site`, bukan mengandalkan FK. Dikunci oleh
+[`tests/integration/test_delete_site_orphan_articles.sql`](../tests/integration/test_delete_site_orphan_articles.sql)
+blok 2 — test itu sengaja memakai artikel yang tersebar ke dua website, sebab
+artikel satu-website tidak akan pernah menangkap regresi ini.
+
+Pelajaran yang layak dicatat: dry-run bukan formalitas sebelum `COMMIT`. Ini
+bukan galat yang membuat migrasi gagal — ia lolos tanpa satu pun pesan, dan
+bocornya baru terlihat dari data nyata.
 
 Tujuh function terbaca "berbeda" pada perbandingan hash `prosrc`. **Bukan
 perbedaan perilaku**: setelah normalisasi whitespace, seluruh body identik
