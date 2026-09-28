@@ -2,16 +2,15 @@
 
 Dokumen ini membagi dokumentasi menjadi dua kelompok: dokumen aktif untuk penggunaan dan deployment, serta dokumen referensi/arsip untuk konteks teknis.
 
-## ⚠️ Status Automation API
+## ✅ Status Automation API
 
-`POST /functions/v1/automation-api` saat ini masih mengembalikan **500**. Dua penyebab, keduanya di produksi — bukan di dokumen:
+`POST /functions/v1/automation-api` **berfungsi** sejak 28 September 2026. Ketiga blocker produksi sudah ditutup:
 
-1. `ARTIKEL_API_KEY_PEPPER` belum ter-set di container `functions` Supabase, jadi function gagal-aman: `500 {"error":"Automation API is not configured"}`.
-2. RPC `artikel.upsert_automation_article` di produksi masih versi lama (merujuk tabel `artikel.site_users` yang tidak pernah dibuat, serta kolom `featured_image`/`meta_keywords` yang tidak ada).
+1. `ARTIKEL_API_KEY_PEPPER` ter-set di container `functions` Supabase (sebelumnya kosong, function gagal-aman dengan `500 "Automation API is not configured"`).
+2. RPC `artikel.upsert_automation_article` diganti versi perbaikan, plus `202609280001_automation_article_actor.sql` diterapkan.
+3. Edge Function membaca embed `sites!inner(...)` sebagai array padahal PostgREST mengembalikan objek untuk relasi to-one — setiap key sah ikut ditolak `401`. Sudah diperbaiki dan disalin ke server.
 
-Perbaikan untuk (2) sudah ada di file migrasi (`202609100014` versi baru + `202609280001_automation_article_actor.sql`) tetapi **belum diterapkan ke produksi**. Langkah penerapan keduanya ada di [`API-DEPLOYMENT.md`](API-DEPLOYMENT.md).
-
-Kontrak request sudah benar dan tidak akan berubah setelah perbaikan; `GET` pada endpoint yang sama berfungsi normal. Public Read API `/api/v1/articles` tidak terdampak. Detail di [`API.md`](API.md).
+Diverifikasi end-to-end lewat HTTP nyata (`GET` 200, `POST` create, `POST` upsert, `400`, `401`, header `X-RateLimit-*` menurun) memakai key sementara yang langsung dicabut, plus suite integrasi SQL 10/10 lulus terhadap database produksi (transaksi di-rollback). Rate limit aktif 120 req/60 detik per key. Detail kontrak di [`API.md`](API.md); prosedur deployment di [`API-DEPLOYMENT.md`](API-DEPLOYMENT.md).
 
 ## Sumber Kebenaran
 

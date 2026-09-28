@@ -201,10 +201,13 @@ BEGIN
   -- berhenti lebih awal saat auth.uid() NULL, dan jalur otomasi selalu service_role.
   -- Bentuk snapshot disamakan dengan trigger tersebut supaya UI riwayat membaca
   -- kunci yang sama untuk revisi dari CMS maupun dari otomasi.
-  SELECT COALESCE(max(version), 0) + 1
+  -- Kolom dikualifikasi dengan alias: nama kolom OUT pada RETURNS TABLE
+  -- (article_id) ada di scope yang sama, jadi WHERE article_id = ... ambigu dan
+  -- ditolak PL/pgSQL saat runtime.
+  SELECT COALESCE(max(ar.version), 0) + 1
   INTO v_version
-  FROM artikel.article_revisions
-  WHERE article_id = v_article_id;
+  FROM artikel.article_revisions ar
+  WHERE ar.article_id = v_article_id;
 
   INSERT INTO artikel.article_revisions (
     article_id,

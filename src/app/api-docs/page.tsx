@@ -2,7 +2,7 @@
 
 import { SidebarProvider, useSidebar } from "@/components/sidebar-context";
 import { AppSidebar } from "@/components/app-sidebar";
-import { AlertTriangle, BookOpenText, Code2, Container, ShieldCheck, Zap } from "lucide-react";
+import { BookOpenText, CheckCircle2, Code2, Container, ShieldCheck, Zap } from "lucide-react";
 
 const publicEndpoints = [
   [
@@ -73,56 +73,52 @@ function ApiDocsContent() {
             </div>
           </header>
 
-          <section className="mt-5 rounded-3xl border-2 border-red-400 bg-red-100 p-5 sm:p-6">
+          <section className="mt-5 rounded-3xl border-2 border-emerald-400 bg-emerald-50 p-5 sm:p-6">
             <div className="flex items-start gap-3">
-              <span className="shrink-0 rounded-xl bg-red-600 p-2 text-white">
-                <AlertTriangle size={20} />
+              <span className="shrink-0 rounded-xl bg-emerald-600 p-2 text-white">
+                <CheckCircle2 size={20} />
               </span>
               <div className="min-w-0">
-                <h2 className="text-lg font-bold text-red-950">
-                  Automation API: POST belum berfungsi
+                <h2 className="text-lg font-bold text-emerald-950">
+                  Automation API: POST sudah berfungsi
                 </h2>
-                <p className="mt-2 text-sm leading-6 text-red-900">
-                  Seluruh request <strong>POST</strong> ke{" "}
-                  <code className="break-words rounded bg-red-200 px-1.5 py-0.5">
+                <p className="mt-2 text-sm leading-6 text-emerald-900">
+                  Sejak <strong>28 September 2026</strong>, request{" "}
+                  <strong>POST</strong> ke{" "}
+                  <code className="break-words rounded bg-emerald-200 px-1.5 py-0.5">
                     /functions/v1/automation-api
                   </code>{" "}
-                  saat ini mengembalikan <strong>500</strong>. Penyebabnya di
-                  sisi database, bukan di request Anda: fungsi{" "}
-                  <code className="break-words rounded bg-red-200 px-1.5 py-0.5">
+                  berjalan normal. Tiga blocker produksi sudah ditutup: pepper
+                  verifikasi API key kini ter-set di container Edge Function,
+                  fungsi{" "}
+                  <code className="break-words rounded bg-emerald-200 px-1.5 py-0.5">
                     artikel.upsert_automation_article
                   </code>{" "}
-                  merujuk tabel{" "}
-                  <code className="break-words rounded bg-red-200 px-1.5 py-0.5">
-                    artikel.site_users
+                  diganti versi perbaikan yang memakai nama tabel dan kolom yang
+                  benar, dan Edge Function tidak lagi salah membaca embed{" "}
+                  <code className="break-words rounded bg-emerald-200 px-1.5 py-0.5">
+                    sites
                   </code>{" "}
-                  yang tidak pernah dibuat, serta kolom{" "}
-                  <code className="break-words rounded bg-red-200 px-1.5 py-0.5">
-                    featured_image
+                  sebagai array — bug yang sebelumnya membuat setiap API key sah
+                  ikut ditolak <strong>401</strong>.
+                </p>
+                <p className="mt-2 text-sm leading-6 text-emerald-900">
+                  Diverifikasi end-to-end lewat HTTP nyata terhadap produksi
+                  (GET, POST create, POST upsert, 400, 401) memakai API key
+                  sementara yang langsung dicabut, plus suite integrasi SQL
+                  10/10 lulus. Kontrak request di bawah adalah yang berlaku.
+                </p>
+                <p className="mt-2 text-sm leading-6 text-emerald-900">
+                  Rate limit aktif: <strong>120 request per 60 detik</strong> per
+                  API key, dengan header{" "}
+                  <code className="break-words rounded bg-emerald-200 px-1.5 py-0.5">
+                    X-RateLimit-*
                   </code>{" "}
                   dan{" "}
-                  <code className="break-words rounded bg-red-200 px-1.5 py-0.5">
-                    meta_keywords
+                  <code className="break-words rounded bg-emerald-200 px-1.5 py-0.5">
+                    Retry-After
                   </code>{" "}
-                  yang tidak ada di tabel artikel.
-                </p>
-                <p className="mt-2 text-sm leading-6 text-red-900">
-                  Kontrak request di bawah sudah benar dan tidak akan berubah
-                  setelah perbaikan. Anda boleh menyiapkan integrasi sekarang,
-                  tetapi <strong>jangan jadwalkan go-live</strong> sebelum
-                  peringatan ini dicabut.{" "}
-                  <code className="break-words rounded bg-red-200 px-1.5 py-0.5">
-                    GET
-                  </code>{" "}
-                  pada endpoint yang sama berfungsi normal untuk verifikasi API
-                  key dan identitas site.
-                </p>
-                <p className="mt-2 text-sm leading-6 text-red-900">
-                  Public Read API{" "}
-                  <code className="break-words rounded bg-red-200 px-1.5 py-0.5">
-                    /api/v1/articles
-                  </code>{" "}
-                  tidak terdampak dan berfungsi penuh.
+                  pada respons 429.
                 </p>
               </div>
             </div>
@@ -189,8 +185,8 @@ function ApiDocsContent() {
                   </span>
                   <div>
                     <h2 className="text-xl font-bold">Automation API</h2>
-                    <span className="text-xs font-semibold text-red-700">
-                      POST BELUM BERFUNGSI — GET OK
+                    <span className="text-xs font-semibold text-emerald-700">
+                      GET &amp; POST AKTIF
                     </span>
                   </div>
                 </div>

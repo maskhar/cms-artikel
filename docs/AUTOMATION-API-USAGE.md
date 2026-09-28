@@ -4,16 +4,15 @@
 
 Panduan lengkap untuk mengelola dan menggunakan Automation API dari dashboard CMS Artikel.
 
-> ⚠️ **`POST` masih 500 di produksi saat ini.** Penyebabnya bukan dokumen ini:
-> `ARTIKEL_API_KEY_PEPPER` belum ter-set di container Edge Function, dan migrasi
-> perbaikan RPC (`202609100014` versi baru + `202609280001`) belum diterapkan ke
-> produksi. `GET` (verifikasi key) berfungsi normal. Peringatan ini dicabut setelah
-> produksi benar-benar diperbaiki.
+> ✅ **`POST` sudah berfungsi** sejak 28 September 2026. Pepper ter-set di container
+> Edge Function, migrasi perbaikan RPC (`202609100014` versi baru +
+> `202609280001`) sudah diterapkan ke produksi, dan bug pembacaan embed `sites`
+> di Edge Function (yang membuat **semua** key ditolak `401`) sudah ditutup.
+> Terverifikasi end-to-end lewat HTTP nyata; suite integrasi SQL 10/10 lulus.
 >
 > Dokumen ini disamakan dengan kontrak nyata pada 28 September 2026. Versi
 > sebelumnya menyebut prefix key `aut_live_`, host `supabase.maskhar.net`, form
-> "Scope: Automation", sinkronisasi `tags`, dan rate limit 120 req/60s — tak satu
-> pun dari itu ada.
+> "Scope: Automation", dan sinkronisasi `tags` — tak satu pun dari itu ada.
 
 ---
 
@@ -397,13 +396,18 @@ function push_to_artikel_cms($post_id) {
 
 ### 5. Rate Limiting
 
-**Automation API yang ter-deploy belum punya rate limit.** Tidak ada header
-`X-RateLimit-*`, tidak ada respons `429`, dan tidak ada `Retry-After`. Versi lama
-dokumen ini menyebut "120 requests per 60 seconds" — angka itu milik Public Read
-API (`x-artikel-key`), bukan Automation API.
+Automation API yang ter-deploy **punya** rate limit: **120 request per 60 detik
+per API key**, sama seperti Public Read API. Diverifikasi langsung pada function
+yang live di produksi, 28 September 2026.
 
-Perlakukan ini sebagai **kewajiban Anda, bukan izin**: tanpa rem di sisi server,
-klien yang mengulang tanpa jeda bisa membebani database. Batasi sendiri.
+Setiap respons membawa header `X-RateLimit-Limit`, `X-RateLimit-Remaining`, dan
+`X-RateLimit-Reset` (epoch detik). Saat kuota habis: `429 {"error":"Too many
+requests"}` disertai `Retry-After` dalam detik.
+
+Batasnya dapat diubah lewat environment variable pada container Edge Function;
+120/60 adalah nilai default bila tidak di-set.
+
+Hormati `Retry-After` alih-alih mengulang langsung.
 
 **Contoh strategi batch:**
 ```php
@@ -475,6 +479,14 @@ bagian variabel lingkungan Edge Function.
 
 **Solusi:** cek status key di halaman **API keys**, lalu **Rotasi** untuk
 mendapat nilai baru. Nilai lama tidak bisa dipulihkan.
+
+**Kalau SEMUA key ditolak `401`, termasuk yang baru dibuat:** kemungkinan besar
+bukan key-nya. Sampai 28 September 2026 Edge Function membaca embed
+`sites!inner(...)` sebagai array (`sites[0]`), padahal PostgREST mengembalikan
+**objek** untuk relasi to-one — jadi `site` selalu `undefined` dan setiap key
+sah ikut ditolak. Sudah diperbaiki. Kalau gejalanya muncul lagi setelah deploy
+Edge Function, periksa baris resolusi `site` di
+`supabase/functions/automation-api/index.ts` sebelum mencurigai key.
 
 ### `400 {"error":"Missing required fields: ..."}`
 

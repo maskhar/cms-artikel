@@ -4,9 +4,11 @@
 > host `supabase.maskhar.net`, prefix key `art_live_`, daftar field wajib yang
 > salah, dan bentuk respons yang tidak pernah dikembalikan API.
 
-> ⚠️ **Automation API `POST` masih 500 di produksi.** `ARTIKEL_API_KEY_PEPPER`
-> belum ter-set di container Edge Function, dan migrasi perbaikan RPC belum
-> diterapkan. `GET` (verifikasi key) berfungsi. Lihat
+> ✅ **Automation API `GET` dan `POST` berfungsi di produksi** sejak 28 September
+> 2026. Tiga blocker ditutup: `ARTIKEL_API_KEY_PEPPER` di-set di container Edge
+> Function, migrasi perbaikan RPC diterapkan, dan Edge Function tidak lagi salah
+> membaca embed `sites` sebagai array (bug yang menolak **semua** key dengan
+> `401`). Terverifikasi end-to-end lewat HTTP nyata. Lihat
 > [Deploy Automation API](#deploy-automation-api-edge-function).
 
 Base URL production: `https://cms.carubra.com`
@@ -305,11 +307,14 @@ Error selalu `{"error": "<pesan>"}` — tanpa kode mesin.
 |---:|---|
 | 400 | Field wajib kurang, JSON tidak valid, atau `status` tidak dikenal |
 | 401 | Key kosong, salah, dicabut, kedaluwarsa, atau site nonaktif |
+| 429 | Batas request tercapai |
 | 500 | Pepper belum ter-set, migrasi RPC belum diterapkan, atau slug bentrok |
 
-**Tidak ada rate limit** pada function yang ter-deploy: tidak ada header
-`X-RateLimit-*`, tidak ada `429`, tidak ada `Retry-After`. Batasi laju dari sisi
-klien.
+Rate limit **aktif**: default 120 request per 60 detik per API key, dengan header
+`X-RateLimit-Limit`, `X-RateLimit-Remaining`, `X-RateLimit-Reset`, dan
+`Retry-After` pada respons `429`. Diverifikasi pada function yang live
+28 September 2026. Batas diatur lewat `ARTIKEL_RATE_LIMIT_REQUESTS` dan
+`ARTIKEL_RATE_LIMIT_WINDOW_SECONDS` di container Edge Function.
 
 ---
 
@@ -329,7 +334,11 @@ CMS_CANONICAL_HOST=cms.carubra.com
 
 `ARTIKEL_API_KEY_PEPPER` harus ter-set di **dua tempat** dengan nilai identik:
 aplikasi Next.js (untuk menerbitkan key) dan container `functions` Supabase
-(untuk memverifikasinya). Rate limit hanya berlaku untuk Public Read API.
+(untuk memverifikasinya). Kalau berbeda, setiap key ditolak `401` — key di-hash
+dengan pepper milik penerbit, lalu diverifikasi dengan pepper milik function.
+
+Variabel rate limit berlaku untuk **kedua** API; keduanya default 120/60 bila
+tidak di-set.
 
 ### Deploy Next.js App (Public Read API & CMS)
 
@@ -348,8 +357,21 @@ Container meneruskan `127.0.0.1:3002` ke port aplikasi `3000`. Reverse proxy dom
 
 Menyalin file saja **tidak cukup**. Function butuh `ARTIKEL_API_KEY_PEPPER` di
 environment container; tanpa itu ia gagal-aman dan menjawab
-`500 {"error":"Automation API is not configured"}` untuk setiap request. Inilah
-penyebab `POST` gagal di produksi saat ini.
+`500 {"error":"Automation API is not configured"}` untuk setiap request.
+
+> ⚠️ **Periksa versi sebelum menyalin.** File yang live di server pernah lebih
+> baru daripada yang ada di branch kerja — menyalin membabi buta akan
+> **menurunkan versi** produksi (misalnya menghapus rate limit yang sudah
+> terpasang). Selalu `diff` dulu dan backup file yang sedang live:
+>
+> ```bash
+> cd ~/docker/supabase/supabase-1.26.05/docker/volumes/functions/automation-api
+> cp index.ts index.ts.bak-$(date +%F)
+> diff -u index.ts /path/ke/repo/supabase/functions/automation-api/index.ts
+> ```
+>
+> Kalau file live punya baris yang tidak ada di repo, selesaikan dulu selisihnya
+> di repo — jangan timpa.
 
 Periksa konfigurasi yang sedang berjalan sebelum mengubah apa pun:
 
