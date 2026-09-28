@@ -2,73 +2,128 @@
 /**
  * PHP Client for Artikel CMS Automation API
  * Usage: php examples/php-client.php
+ *
+ * STATUS: POST ke Automation API saat ini mengembalikan 500. Penyebabnya bug di
+ * fungsi database artikel.upsert_automation_article, bukan di client ini.
+ * Kontrak request di bawah sudah benar dan tidak akan berubah setelah
+ * perbaikan. Lihat docs/API.md. GET pada endpoint yang sama berfungsi normal
+ * (lihat checkSite()).
  */
 
 class ArtikelAPIClient
 {
     private string $apiKey;
     private string $endpoint;
-    
+
     public function __construct(string $apiKey, string $baseUrl)
     {
         $this->apiKey = $apiKey;
-        $this->endpoint = rtrim($baseUrl, '/') . '/functions/v1/artikel-cms';
+        $this->endpoint = rtrim($baseUrl, '/') . '/functions/v1/automation-api';
     }
-    
+
     /**
-     * Create or update an article
+     * Verifikasi API key dan identitas site.
+     * Ini satu-satunya jalur Automation API yang berfungsi penuh saat ini.
+     *
+     * @return array ['success' => true, 'site' => [...]]
+     * @throws Exception If API request fails
+     */
+    public function checkSite(): array
+    {
+        $ch = curl_init($this->endpoint);
+        curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+        curl_setopt($ch, CURLOPT_HTTPHEADER, ['x-api-key: ' . $this->apiKey]);
+
+        $response = curl_exec($ch);
+        $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        $error = curl_error($ch);
+        curl_close($ch);
+
+        if ($error) {
+            throw new Exception("cURL Error: $error");
+        }
+
+        $data = json_decode($response, true);
+
+        if ($httpCode >= 400) {
+            throw new Exception("API Error ($httpCode): " . ($data['error'] ?? 'Unknown error'));
+        }
+
+        return $data;
+    }
+
+    /**
+     * Create or update an article (upsert by external_id)
      *
      * @param array $articleData Article data
-     * @return array API response
+     * @return array ['success' => true, 'site' => [...], 'data' => [[...]]]
      * @throws Exception If API request fails
      */
     public function upsertArticle(array $articleData): array
     {
+        // Body dikirim flat, bukan envelope ['action', 'data'].
+        // Wajib: external_id, title, slug, content, category_name.
         $payload = [
-            'action' => 'article.upsert',
-            'data' => [
-                'external_id' => $articleData['external_id'],
-                'title' => $articleData['title'],
-                'slug' => $articleData['slug'],
-                'content' => $articleData['content'],
-                'excerpt' => $articleData['excerpt'] ?? null,
-                'category' => $articleData['category'],
-                'status' => $articleData['status'] ?? 'draft',
-                'featured_image' => $articleData['featured_image'] ?? null,
-                'meta_description' => $articleData['meta_description'] ?? null,
-                'meta_keywords' => $articleData['meta_keywords'] ?? null,
-                'published_at' => $articleData['published_at'] ?? null,
-            ]
+            'external_id' => $articleData['external_id'],
+            'title' => $articleData['title'],
+            'slug' => $articleData['slug'],
+            'content' => $articleData['content'],
+            'excerpt' => $articleData['excerpt'] ?? null,
+            'category_name' => $articleData['category_name'],
+            'status' => $articleData['status'] ?? 'draft',
+            'featured_image' => $articleData['featured_image'] ?? null,
+            'meta_description' => $articleData['meta_description'] ?? null,
+            'meta_keywords' => $articleData['meta_keywords'] ?? null,
+            'published_at' => $articleData['published_at'] ?? null,
         ];
-        
+
         $ch = curl_init($this->endpoint);
         curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
         curl_setopt($ch, CURLOPT_POST, true);
         curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($payload));
         curl_setopt($ch, CURLOPT_HTTPHEADER, [
             'Content-Type: application/json',
-            'x-artikel-key: ' . $this->apiKey,
+            'x-api-key: ' . $this->apiKey,
         ]);
-        
+
         $response = curl_exec($ch);
         $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
         $error = curl_error($ch);
         curl_close($ch);
-        
+
         if ($error) {
             throw new Exception("cURL Error: $error");
         }
-        
+
         $data = json_decode($response, true);
-        
+
         if ($httpCode >= 400) {
-            $message = $data['error']['message'] ?? 'Unknown error';
+            // Error dikembalikan flat: ['error' => 'pesan'], bukan bersarang.
+            $message = $data['error'] ?? 'Unknown error';
             throw new Exception("API Error ($httpCode): $message");
         }
-        
+
         return $data;
     }
-    
+
+    /**
+     * Ambil baris pertama dari $result['data'].
+     *
+     * RPC memakai RETURNS TABLE sehingga data berupa list berisi kolom:
+     * article_id, revision_id, created_new, category_id.
+     *
+     * @param array $result Respons upsertArticle()
+     * @return array
+     */
+    public static function firstRow(array $result): array
+    {
+        $data = $result['data'] ?? [];
+        if (is_array($data) && array_is_list($data)) {
+            return $data[0] ?? [];
+        }
+        return is_array($data) ? $data : [];
+    }
+
     /**
      * Batch upsert multiple articles
      *
@@ -91,8 +146,8 @@ class ArtikelAPIClient
                     $result = $this->upsertArticle($article);
                     $results['success'][] = [
                         'external_id' => $article['external_id'],
-                        'article_id' => $result['data']['article_id'],
-                        'created' => $result['data']['created'],
+                        'article_id' => self::firstRow($result)['article_id'] ?? null,
+                        'created_new' => self::firstRow($result)['created_new'] ?? null,
                     ];
                     break;
                 } catch (Exception $e) {
@@ -126,8 +181,8 @@ class ArtikelAPIClient
 // Example usage
 function main()
 {
-    $apiKey = getenv('ARTIKEL_API_KEY');
-    $supabaseUrl = getenv('SUPABASE_URL') ?: 'https://your-project.supabase.co';
+    $apiKey = getenv('AUTOMATION_API_KEY');
+    $supabaseUrl = getenv('SUPABASE_URL') ?: 'https://supabase.carubra.com';
     
     if (!$apiKey) {
         die("Error: ARTIKEL_API_KEY environment variable not set\n");
@@ -136,7 +191,19 @@ function main()
     $client = new ArtikelAPIClient($apiKey, $supabaseUrl);
     
     echo "=== Artikel CMS Automation API - PHP Client ===\n\n";
-    
+
+    // Example 0: verifikasi key dan site (jalur yang berfungsi)
+    echo "Example 0: Verifikasi API key dan site\n";
+    try {
+        $info = $client->checkSite();
+        echo "✓ Key valid untuk site: " . json_encode($info['site'] ?? null) . "\n";
+    } catch (Exception $e) {
+        echo "✗ Gagal: " . $e->getMessage() . "\n";
+        return;
+    }
+
+    echo "\n---\n\n";
+
     // Example 1: Create single article
     echo "Example 1: Create new article\n";
     try {
@@ -146,9 +213,9 @@ function main()
             'slug' => 'php-83-features-you-should-know',
             'content' => '<h1>PHP 8.3 Features</h1><p>Discover the latest features...</p>',
             'excerpt' => 'Explore the new features in PHP 8.3',
-            'category' => 'PHP',
+            'category_name' => 'PHP',
             'status' => 'published',
-            'featured_image' => 'https://example.com/images/php83.jpg',
+            'featured_image' => 'sites/contoh/articles/php83.jpg',
             'meta_description' => 'Complete guide to PHP 8.3 features',
             'meta_keywords' => ['php', 'php 8.3', 'features'],
             'published_at' => date('c'),
@@ -170,12 +237,13 @@ function main()
             'slug' => 'php-83-features-you-should-know',
             'content' => '<h1>PHP 8.3 Features - Updated</h1><p>Updated content...</p>',
             'excerpt' => 'Updated: Explore the new features in PHP 8.3',
-            'category' => 'PHP',
+            'category_name' => 'PHP',
             'status' => 'published',
         ]);
         
-        echo "✓ Article updated: article_id={$result['data']['article_id']}, " .
-             "created=" . ($result['data']['created'] ? 'true' : 'false') . "\n";
+        $row = ArtikelAPIClient::firstRow($result);
+        echo "✓ Article updated: article_id=" . ($row['article_id'] ?? '?') . ", " .
+             "created_new=" . (!empty($row['created_new']) ? 'true' : 'false') . "\n";
     } catch (Exception $e) {
         echo "✗ Failed: " . $e->getMessage() . "\n";
     }
@@ -192,7 +260,7 @@ function main()
             'slug' => "batch-article-{$i}",
             'content' => "<p>Content for batch article {$i}</p>",
             'excerpt' => "Excerpt {$i}",
-            'category' => 'Batch Import',
+            'category_name' => 'Batch Import',
             'status' => 'draft',
         ];
     }
@@ -245,7 +313,7 @@ function main()
             'slug' => $post['post_name'],
             'content' => $post['post_content'],
             'excerpt' => $post['post_excerpt'],
-            'category' => 'WordPress Import',
+            'category_name' => 'WordPress Import',
             'status' => $post['post_status'] === 'publish' ? 'published' : 'draft',
             'published_at' => date('c', strtotime($post['post_date'])),
         ];

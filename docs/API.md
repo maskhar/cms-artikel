@@ -1,5 +1,22 @@
 # Automation API Artikel
 
+> ## ⚠️ STATUS: Automation API `POST` belum berfungsi
+>
+> Seluruh request **POST** ke `/functions/v1/automation-api` mengembalikan **500 `Database operation failed`**. Penyebabnya di sisi database, bukan di request pemanggil:
+>
+> - `artikel.upsert_automation_article` merujuk tabel `artikel.site_users` yang **tidak pernah dibuat** di migrasi mana pun. Tabel role yang nyata adalah `artikel.user_roles`.
+> - Fungsi menulis kolom `featured_image` dan `meta_keywords`; kolom nyata adalah `featured_image_path`, dan `meta_keywords` tidak ada di `artikel.articles`.
+> - Insert `artikel.article_revisions` memakai `revision_number` / `author_id` / `change_summary`; kolom nyata adalah `version` / `snapshot` (NOT NULL, tidak pernah diisi) / `change_note` / `created_by`.
+> - Migrasi `202609100015_add_automation_api_rls_policies.sql` gagal saat apply karena alasan yang sama.
+>
+> **Kontrak request di dokumen ini sudah benar dan tidak akan berubah setelah perbaikan.** Integrasi boleh disiapkan sekarang, tetapi jangan dijadwalkan go-live sebelum peringatan ini dicabut.
+>
+> `GET /functions/v1/automation-api` **berfungsi normal** untuk verifikasi API key dan identitas site.
+>
+> **Public Read API `/api/v1/articles` tidak terdampak** dan berfungsi penuh.
+>
+> Catatan tambahan: Automation API **belum memiliki rate limit di produksi** — tidak pernah mengembalikan `429` dan tidak mengirim header `X-RateLimit-*`. Implementasinya sudah ada di branch `security/critical-remediation` tetapi belum di-deploy.
+
 Dokumentasi diperbarui **12 September 2026, 03:46 ICT (UTC+7)** berdasarkan kode repository. Waktu ini menandai revisi dokumentasi, bukan deployment semua endpoint. Versi Edge Function di server belum diverifikasi ulang pada revisi ini.
 
 ## Riwayat perubahan API

@@ -43,14 +43,13 @@ Platform multi-tenant untuk membuat, mereview, menyetujui, dan menerbitkan artik
 | Dokumen | Deskripsi |
 |---------|-----------|
 | [docs/README.md](docs/README.md) | Indeks dokumentasi aktif, referensi, dan arsip |
-| [API.md](docs/API.md) | Kontrak final Automation API dan Public Read API |
+| [API.md](docs/API.md) | Kontrak final Automation API dan Public Read API (sumber kebenaran) |
 | [PRD.md](docs/PRD.md) | Product Requirements Document |
 | [SDD.md](docs/SDD.md) | System Design Document |
 | [TODO.md](docs/TODO.md) | Development checklist & roadmap |
 | [API-INTEGRATION.md](docs/API-INTEGRATION.md) | Panduan integrasi Public Read API |
 | [DEPLOYMENT-TENANT-API.md](docs/DEPLOYMENT-TENANT-API.md) | Deployment runbook lengkap |
 | [DEPLOYMENT-CMS.md](docs/DEPLOYMENT-CMS.md) | Operasional container CMS production |
-| [UNIFIED-CMS-API-DESIGN.md](docs/UNIFIED-CMS-API-DESIGN.md) | Desain arsitektur Automation API |
 
 ---
 
@@ -256,9 +255,11 @@ docker compose exec -T db psql -U postgres -d postgres \
 
 ### 🚧 In Progress
 
-- [ ] Edge Function automation API (`artikel-cms`)
-- [ ] Migration `external_id` untuk idempotency
-- [ ] PostgreSQL function `upsert_automation_article`
+- [x] Edge Function Automation API (`automation-api`) — `GET` (verifikasi key) berfungsi
+- [ ] `POST /functions/v1/automation-api` — masih 500, lihat catatan di bawah
+- [ ] PostgreSQL function `artikel.upsert_automation_article` — rujuk tabel `artikel.site_users` yang tidak ada serta kolom `featured_image`/`meta_keywords` yang tidak ada; kontrak request sudah benar dan tidak berubah setelah perbaikan. Detail: [`docs/API.md`](docs/API.md)
+
+Edge Function `artikel-cms` sudah dipensiunkan dan tidak pernah ter-deploy; dokumennya dipindah ke [`docs/archive/obsolete-artikel-cms/`](docs/archive/obsolete-artikel-cms/).
 
 ### 📋 Planned
 

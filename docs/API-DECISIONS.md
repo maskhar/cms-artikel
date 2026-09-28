@@ -12,4 +12,4 @@
 | Action publish/archive/get | Ditunda | Dibangun setelah `article.upsert` idempotent lolos UAT. |
 | Hardcoded kategori pada website | Tetap tidak direkomendasikan | Ikuti `docs/API-INTEGRATION.md`; endpoint kategori publik dinilai terpisah. |
 
-Dokumen sumber keputusan teknis: `docs/UNIFIED-CMS-API-DESIGN.md`.
+Dokumen sumber keputusan teknis: `docs/archive/obsolete-artikel-cms/UNIFIED-CMS-API-DESIGN.md` (diarsipkan). Kontrak yang berlaku ada di `docs/API.md`.

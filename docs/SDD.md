@@ -46,7 +46,7 @@ Transition hanya lewat server/function tervalidasi. Writer tidak mendapat transi
 - Request memakai `action`, `request_id`, dan `data`; versi pertama hanya `article.upsert`.
 - Database mutation harus melalui `artikel.upsert_automation_article(...)`, bukan insert berantai dari Edge Function.
 - Endpoint tidak mengelola site, role, kategori, API key, atau permanent delete.
-- Detail kontrak: `docs/UNIFIED-CMS-API-DESIGN.md`.
+- Detail kontrak: `docs/API.md`.
 
 ## Deployment
 SSH `maskhar@20.20.20.173`, masuk `~/docker/supabase/supabase-1.26.05/docker`, inspeksi Compose aktif, lalu jalankan migration versioned schema `artikel`. Jangan ubah service, volume, secret, atau aplikasi lain.

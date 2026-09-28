@@ -2,7 +2,7 @@
 
 import { SidebarProvider, useSidebar } from "@/components/sidebar-context";
 import { AppSidebar } from "@/components/app-sidebar";
-import { BookOpenText, Code2, Container, ShieldCheck, Zap } from "lucide-react";
+import { AlertTriangle, BookOpenText, Code2, Container, ShieldCheck, Zap } from "lucide-react";
 
 const publicEndpoints = [
   [
@@ -73,6 +73,61 @@ function ApiDocsContent() {
             </div>
           </header>
 
+          <section className="mt-5 rounded-3xl border-2 border-red-400 bg-red-100 p-5 sm:p-6">
+            <div className="flex items-start gap-3">
+              <span className="shrink-0 rounded-xl bg-red-600 p-2 text-white">
+                <AlertTriangle size={20} />
+              </span>
+              <div className="min-w-0">
+                <h2 className="text-lg font-bold text-red-950">
+                  Automation API: POST belum berfungsi
+                </h2>
+                <p className="mt-2 text-sm leading-6 text-red-900">
+                  Seluruh request <strong>POST</strong> ke{" "}
+                  <code className="break-words rounded bg-red-200 px-1.5 py-0.5">
+                    /functions/v1/automation-api
+                  </code>{" "}
+                  saat ini mengembalikan <strong>500</strong>. Penyebabnya di
+                  sisi database, bukan di request Anda: fungsi{" "}
+                  <code className="break-words rounded bg-red-200 px-1.5 py-0.5">
+                    artikel.upsert_automation_article
+                  </code>{" "}
+                  merujuk tabel{" "}
+                  <code className="break-words rounded bg-red-200 px-1.5 py-0.5">
+                    artikel.site_users
+                  </code>{" "}
+                  yang tidak pernah dibuat, serta kolom{" "}
+                  <code className="break-words rounded bg-red-200 px-1.5 py-0.5">
+                    featured_image
+                  </code>{" "}
+                  dan{" "}
+                  <code className="break-words rounded bg-red-200 px-1.5 py-0.5">
+                    meta_keywords
+                  </code>{" "}
+                  yang tidak ada di tabel artikel.
+                </p>
+                <p className="mt-2 text-sm leading-6 text-red-900">
+                  Kontrak request di bawah sudah benar dan tidak akan berubah
+                  setelah perbaikan. Anda boleh menyiapkan integrasi sekarang,
+                  tetapi <strong>jangan jadwalkan go-live</strong> sebelum
+                  peringatan ini dicabut.{" "}
+                  <code className="break-words rounded bg-red-200 px-1.5 py-0.5">
+                    GET
+                  </code>{" "}
+                  pada endpoint yang sama berfungsi normal untuk verifikasi API
+                  key dan identitas site.
+                </p>
+                <p className="mt-2 text-sm leading-6 text-red-900">
+                  Public Read API{" "}
+                  <code className="break-words rounded bg-red-200 px-1.5 py-0.5">
+                    /api/v1/articles
+                  </code>{" "}
+                  tidak terdampak dan berfungsi penuh.
+                </p>
+              </div>
+            </div>
+          </section>
+
           <section className="mt-5 rounded-3xl border border-red-100 bg-red-50 p-5 sm:p-6">
             <h2 className="text-lg font-bold">Riwayat perubahan · 12 September 2026</h2>
             <p className="mt-2 text-sm text-slate-600">Berdasarkan kode repository. Waktu revisi bukan waktu deployment; Edge Function server belum diverifikasi ulang.</p>
@@ -134,8 +189,8 @@ function ApiDocsContent() {
                   </span>
                   <div>
                     <h2 className="text-xl font-bold">Automation API</h2>
-                    <span className="text-xs font-semibold text-amber-700">
-                      NEW
+                    <span className="text-xs font-semibold text-red-700">
+                      POST BELUM BERFUNGSI — GET OK
                     </span>
                   </div>
                 </div>
@@ -295,9 +350,15 @@ function ApiDocsContent() {
                   <Code2 size={18} /> Rate limit
                 </div>
                 <p className="mt-3 text-sm leading-6 text-slate-600">
-                  Default 120 request per 60 detik. Baca header{" "}
-                  <code>X-RateLimit-Remaining</code> dan hormati{" "}
-                  <code>Retry-After</code> saat status 429.
+                  <strong>Public Read API:</strong> default 120 request per 60
+                  detik. Baca header <code>X-RateLimit-Remaining</code> dan
+                  hormati <code>Retry-After</code> saat status 429.
+                </p>
+                <p className="mt-3 text-sm leading-6 text-slate-600">
+                  <strong>Automation API:</strong> belum ada rate limit di
+                  produksi. Endpoint ini tidak pernah mengembalikan 429 dan
+                  tidak mengirim header <code>X-RateLimit-*</code> untuk saat
+                  ini. Jangan andalkan keduanya dalam logika retry.
                 </p>
               </section>
 
@@ -305,19 +366,23 @@ function ApiDocsContent() {
                 <div className="flex items-center gap-2 font-bold text-slate-900">
                   📚 Docs
                 </div>
-                <div className="mt-3 space-y-2 text-sm">
-                  <a
-                    href="/docs/API-DEPLOYMENT.md"
-                    className="block text-blue-600 hover:underline"
-                  >
-                    → Full Deployment Guide
-                  </a>
-                  <a
-                    href="/docs/AUTOMATION-API-USAGE.md"
-                    className="block text-blue-600 hover:underline"
-                  >
-                    → Automation API Usage
-                  </a>
+                <div className="mt-3 space-y-2 text-sm text-slate-600">
+                  <p>
+                    Kontrak lengkap ada di{" "}
+                    <code className="rounded bg-slate-100 px-1.5 py-0.5">
+                      docs/API.md
+                    </code>{" "}
+                    di dalam repository. Itu satu-satunya dokumen referensi yang
+                    terverifikasi cocok dengan kode.
+                  </p>
+                  <p>
+                    Dokumen lain di{" "}
+                    <code className="rounded bg-slate-100 px-1.5 py-0.5">
+                      docs/
+                    </code>{" "}
+                    sedang ditinjau ulang; beberapa masih menjelaskan endpoint
+                    lama yang sudah tidak dipakai.
+                  </p>
                 </div>
               </section>
             </aside>

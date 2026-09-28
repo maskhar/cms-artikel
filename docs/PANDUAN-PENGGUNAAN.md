@@ -581,7 +581,7 @@ Docs lengkap:
 - docs/SDD.md (system design)
 - docs/API-INTEGRATION.md (panduan integrasi website)
 - docs/DEPLOYMENT-TENANT-API.md (deployment runbook)
-- docs/UNIFIED-CMS-API-DESIGN.md (automation API upcoming)
+- docs/API.md (kontrak Automation API dan Public Read API)
 - docs/TODO.md (development checklist)
 
 Session logs:
