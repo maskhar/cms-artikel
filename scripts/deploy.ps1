@@ -1,9 +1,11 @@
 # Deploy CMS Artikel
 #
 # Aplikasi ini berjalan di WORKSTATION INI, bukan di 20.20.20.173.
-# cms.carubra.com dilayani container `cms-artikel` lokal lewat cloudflared-tunnel
-# yang berbagi network `carubra-network`. Server 20.20.20.173 hanya menjalankan
-# Supabase (database, auth, storage) di https://supabase.carubra.com.
+# cms.carubra.com dilayani container `cms-artikel` lokal — terbukti lewat uji
+# stop/start: container dimatikan, domain publik jadi 502. Hop antara Cloudflare
+# dan container belum diverifikasi (ingress cloudflared-tunnel tidak memuat
+# cms.carubra.com), lihat docs/DEPLOYMENT-CMS.md. Server 20.20.20.173 hanya
+# menjalankan Supabase (database, auth, storage) di https://supabase.carubra.com.
 #
 # Versi lama skrip ini mem-push kode ke ~/apps/cms-artikel di 20.20.20.173 dan
 # membangunnya di sana. Container itu memang naik dan sehat — tapi tidak menerima

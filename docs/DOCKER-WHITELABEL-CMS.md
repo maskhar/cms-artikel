@@ -3,14 +3,19 @@
 ## Topologi
 
 ```text
-cms.carubra.com              ┐
-cms.uteroindonesia.com       ├─ tunnel/reverse proxy ─ CMS Docker :3000
-cms.buzzerhood.com           ┘
+cms.carubra.com              ┐  (aktif)
+cms.buzzerhood.com           ├─ tunnel/reverse proxy ─ CMS Docker :3000
+cms.uteroindonesia.com       ┘  (CONTOH — belum dikonfigurasi, tidak resolve)
 
 CMS Docker → https://supabase.carubra.com → Supabase self-hosted
 ```
 
 Semua hostname CMS menuju container `cms-artikel` yang sama. Hostname hanya mengubah konteks tampilan dan website default. Hak akses data selalu berasal dari Supabase Auth dan RLS, bukan hostname.
+
+> Per 29 September 2026, alias CMS yang benar-benar aktif adalah
+> `cms.carubra.com` dan `cms.buzzerhood.com`. `cms.uteroindonesia.com` dipakai
+> sepanjang dokumen ini sebagai **contoh** cara menambah alias baru; DNS-nya
+> belum dibuat. Jangan disalin sebagai fakta topologi.
 
 ## Environment production
 
@@ -46,9 +51,9 @@ Container hanya membuka `127.0.0.1:3000`. Tunnel atau reverse proxy menjadi satu
 Tambahkan ingress hostname pada tunnel yang sudah ada. Semua hostname mengarah ke origin CMS yang sama:
 
 ```text
-cms.carubra.com              → http://127.0.0.1:3000
-cms.uteroindonesia.com       → http://127.0.0.1:3000
-cms.buzzerhood.com           → http://127.0.0.1:3000
+cms.carubra.com              → http://127.0.0.1:3000   (aktif)
+cms.buzzerhood.com           → http://127.0.0.1:3000   (aktif)
+cms.uteroindonesia.com       → http://127.0.0.1:3000   (contoh, belum dibuat)
 ```
 
 Pastikan tunnel meneruskan header `Host` atau `X-Forwarded-Host`. Jangan arahkan hostname CMS ke container Supabase.
@@ -58,7 +63,7 @@ Pastikan tunnel meneruskan header `Host` atau `X-Forwarded-Host`. Jangan arahkan
 1. Terapkan migration sampai `202609100010_cms_hostnames.sql` di staging lebih dahulu.
 2. Login melalui `cms.carubra.com`.
 3. Buka menu **CMS Domains**.
-4. Tambahkan `cms.uteroindonesia.com` dan pilih Utero sebagai website default bila diinginkan.
+4. Tambahkan alias tenant (contoh: `cms.uteroindonesia.com`) dan pilih website defaultnya bila diinginkan.
 5. Tambahkan hostname yang sama pada tunnel.
 6. Buka alias dan verifikasi banner hostname di sidebar.
 

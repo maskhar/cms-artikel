@@ -203,9 +203,10 @@ Aplikasi   : workstation lokal (repo ini)   → cms-artikel:3002 → cms.carubra
 Database   : maskhar@20.20.20.173           → supabase-db      → supabase.carubra.com
 ```
 
-`cms.carubra.com` dilayani container `cms-artikel` **di workstation**, lewat
-`cloudflared-tunnel` yang berbagi network `carubra-network`. Server
-`20.20.20.173` hanya menjalankan Supabase.
+`cms.carubra.com` dilayani container `cms-artikel` **di workstation** — terbukti
+lewat uji stop/start container. Mekanisme hop antara Cloudflare dan container
+belum diverifikasi; lihat `docs/DEPLOYMENT-CMS.md`. Server `20.20.20.173` hanya
+menjalankan Supabase.
 
 > ⚠️ Kedua mesin sama-sama punya container `cms-artikel` di `127.0.0.1:3002`.
 > Yang di server **tidak menerima trafik** — sisa deploy salah sasaran

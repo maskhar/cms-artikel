@@ -450,6 +450,8 @@ Admin bisa lihat semua aktivitas:
 
 ```
 Scenario: Tenant mau akses CMS dari domain sendiri
+(cms.uteroindonesia.com di bawah ini CONTOH — belum ada DNS-nya.
+ Alias yang benar-benar aktif: cms.carubra.com dan cms.buzzerhood.com)
 
 Admin setup:
 1. Menu: CMS Domains

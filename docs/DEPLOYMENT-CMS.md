@@ -22,25 +22,38 @@ Aplikasi dan database berada di **dua mesin berbeda**:
 | Mesin | **Workstation lokal** (tempat repo ini berada) | `maskhar@20.20.20.173` |
 | Container | `cms-artikel` | `supabase-db` dkk |
 | Domain | `https://cms.carubra.com` | `https://supabase.carubra.com` |
-| Dibuka lewat | `cloudflared-tunnel` di mesin yang sama, via `carubra-network` | Kong → `8000/8443` |
+| Dibuka lewat | Cloudflare (mekanisme hop terakhir belum diverifikasi — lihat di bawah) | Kong → `8000/8443` |
 | Deploy | `docker compose build && docker compose up -d` **di workstation** | `docker exec -i supabase-db psql` lewat SSH |
 
-Jalur trafik yang sebenarnya:
+Jalur trafik:
 
 ```
-cms.carubra.com → Cloudflare → cloudflared-tunnel (workstation)
-                                     ↓ carubra-network
-                               cms-artikel:3000     ← container di workstation
-                                     ↓
-                     https://supabase.carubra.com → 20.20.20.173
+cms.carubra.com → Cloudflare → [?] → cms-artikel:3000 (workstation)
+                                              ↓
+                              https://supabase.carubra.com → 20.20.20.173
 ```
 
-`cloudflared-tunnel` dan `cms-artikel` berbagi network `carubra-network` **di
-workstation**. Tunnel meneruskan ke container lokal, bukan ke server.
+**Yang terbukti:** hentikan container `cms-artikel` di workstation →
+`https://cms.carubra.com` jadi 502; jalankan lagi → 200. Jadi container inilah
+origin produksinya, dan yang di `20.20.20.173` (sekarang sudah dihapus) tidak
+pernah menerima trafik.
 
-Cara membuktikannya kalau ragu (jangan percaya dokumen ini begitu saja —
-dokumen inilah yang dulu keliru): hentikan container lokal, lalu panggil domain
-publiknya. Kalau jadi 502, container lokal itulah yang melayani produksi.
+**Yang BELUM terbukti — hop `[?]`.** Versi awal dokumen ini menulis
+`Cloudflare → cloudflared-tunnel → carubra-network → cms-artikel`, tapi itu
+tebakan, bukan hasil pemeriksaan:
+
+- ingress yang tercatat di `cloudflared-tunnel` hanya `n8n.directlicense.id`
+  dan `waha.directlicense.id` — `cms.carubra.com` tidak ada di situ;
+- `nginx_proxy_caubra` cuma berisi konfigurasi `localhost` bawaan.
+
+Kemungkinan besar routing hostname ini diatur **dari dashboard Cloudflare**
+(per-hostname, di luar berkas konfigurasi mana pun di mesin ini), bukan dari
+ingress lokal. Siapa pun yang butuh mengubah jalurnya harus memeriksa dashboard
+Cloudflare lebih dulu, bukan mengedit compose file.
+
+Cara membuktikan ulang origin-nya kalau ragu (jangan percaya dokumen ini begitu
+saja — dokumen inilah yang dulu keliru): hentikan container lokal, lalu panggil
+domain publiknya. Kalau jadi 502, container lokal itulah yang melayani produksi.
 
 - **Port:** `127.0.0.1:3002 -> 3000` (sama di kedua mesin — inilah yang membuat
   probe `curl 127.0.0.1:3002` di server tampak "berhasil" padahal salah sasaran)
