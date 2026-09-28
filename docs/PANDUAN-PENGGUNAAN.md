@@ -593,9 +593,9 @@ Session logs:
 ### Kontak DevOps
 
 ```
-SSH: maskhar@20.20.20.173
-CMS Path: ~/apps/cms-artikel
+SSH: maskhar@20.20.20.173   (khusus Supabase — aplikasi TIDAK ada di sini)
 Supabase: ~/docker/supabase/supabase-1.26.05/docker
+CMS: berjalan di workstation, deploy dengan `pwsh scripts/deploy.ps1`
 Domain: cms.carubra.com (port 3002)
 Database: PostgreSQL schema artikel
 ```

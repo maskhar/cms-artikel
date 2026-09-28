@@ -2,6 +2,11 @@
 
 **Tanggal:** 10 September 2026
 
+> ⚠️ **Catatan historis, bukan acuan integrasi.** Keputusan di bawah menyebut
+> endpoint `POST /functions/v1/artikel-cms`, yang sesudahnya dipensiunkan dan
+> tidak pernah ter-deploy. Yang berlaku sekarang `automation-api`; kontraknya
+> di [`docs/API.md`](API.md).
+
 | Item lama | Keputusan | Pengganti/alasan |
 | --- | --- | --- |
 | Gagasan satu API menggantikan seluruh CMS | Dibatalkan | CMS admin perlu Auth/RLS dan tetap memakai `/api/cms/*`. |

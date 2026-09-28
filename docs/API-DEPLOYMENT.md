@@ -342,16 +342,34 @@ tidak di-set.
 
 ### Deploy Next.js App (Public Read API & CMS)
 
+> ⚠️ **Jangan SSH untuk ini.** Aplikasi berjalan di **workstation**, bukan di
+> `20.20.20.173`. Direktori `~/apps/cms-artikel` di server sudah dihapus
+> 28 September 2026 — snippet lama di tempat ini menyuruh deploy ke sana dan
+> membuat dua deploy mendarat di container tanpa trafik selama 16 hari.
+> Lihat `docs/DEPLOYMENT-CMS.md`.
+
+Dijalankan di root repo, **di workstation**:
+
 ```bash
-ssh maskhar@supabase-server
-cd ~/apps/cms-artikel
-git pull
-docker compose up -d --build
-docker ps --filter name=cms-artikel
+pwsh scripts/deploy.ps1
+```
+
+Skrip itu menandai image rollback, build, memeriksa matcher middleware di dalam
+image, menukar container, lalu memverifikasi gerbang auth lewat domain publik.
+
+Manual:
+
+```bash
+docker tag cms-artikel-cms-artikel cms-artikel-cms-artikel:rollback-$(date +%F)
+docker compose build
+docker compose up -d
 docker logs cms-artikel --tail 100
 ```
 
-Container meneruskan `127.0.0.1:3002` ke port aplikasi `3000`. Reverse proxy domain harus mengarah ke `127.0.0.1:3002`.
+Container meneruskan `127.0.0.1:3002` ke port aplikasi `3000`; `cloudflared-tunnel`
+di workstation yang mengekspos ke `cms.carubra.com` lewat `carubra-network`.
+
+Verifikasi **wajib lewat `https://cms.carubra.com`** — bukan `127.0.0.1:3002`.
 
 ### Deploy Automation API (Edge Function)
 

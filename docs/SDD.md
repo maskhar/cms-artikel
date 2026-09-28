@@ -2,6 +2,11 @@
 
 **Status:** Updated — 10 September 2026
 
+> ⚠️ **Jangan dipakai sebagai acuan integrasi.** Dokumen ini masih menyebut
+> Edge Function `artikel-cms`, yang sudah dipensiunkan dan tidak pernah
+> ter-deploy. Automation API yang berlaku adalah `automation-api`; kontraknya
+> di [`docs/API.md`](API.md).
+
 ## Arsitektur
 ```text
 CMS Browser → Next.js CMS → Supabase Auth/PostgreSQL schema artikel/Storage

@@ -46,11 +46,23 @@ publiknya. Kalau jadi 502, container lokal itulah yang melayani produksi.
   probe `curl 127.0.0.1:3002` di server tampak "berhasil" padahal salah sasaran)
 - **Status:** Running & Healthy ✓
 
-### Container `cms-artikel` di `20.20.20.173`
+### Container `cms-artikel` di `20.20.20.173` — sudah dihapus
 
-Ada, sehat, dan **tidak menerima trafik apa pun**. Sisa deploy 28 September 2026
-yang salah sasaran. Jangan dijadikan acuan status produksi; verifikasi apa pun
-di sana tidak membuktikan apa-apa tentang `cms.carubra.com`.
+Dihapus 28 September 2026. Sebelumnya ada, sehat, dan tidak menerima trafik apa
+pun — sisa deploy yang salah sasaran, tapi tetap memegang
+`SUPABASE_SERVICE_ROLE_KEY` dan masih bisa menulis ke database produksi.
+
+Yang dihapus: container + image (`docker compose down --rmi local`), direktori
+`~/apps/cms-artikel`, dan tiga arsip `cms-artikel-*.tar.gz` — arsipnya memuat
+`.env` dan `.env.production`, jadi membiarkannya akan membatalkan tujuan
+pembersihan. Isi kedua berkas dicek md5 identik dengan salinan workstation
+sebelum dihapus; tidak ada yang hilang.
+
+**Dipertahankan:** `~/db-backups/*.dump` (4 berkas, 4.2–4.4 MB) — titik pulang
+migrasi. Stack Supabase dan aplikasi `buzzerhood-*` tidak tersentuh.
+
+Sesudah penghapusan, `cms.carubra.com` diverifikasi tetap normal: `/login` 200,
+`/api-keys` dan `/api-docs` 307. Server itu sekarang murni Supabase + storage.
 
 ## Riwayat deploy keamanan
 
@@ -237,19 +249,21 @@ Harap: semua 307 kecuali `/login` yang 200.
 
 ### Monitoring
 
-`ash
+Semua dijalankan **di workstation** — container CMS tidak ada lagi di server.
+
+```bash
 # Cek status container
 docker ps --filter 'name=cms-artikel'
 
 # Cek health
-docker inspect cms-artikel | grep -A 5 Health
+docker inspect cms-artikel --format '{{.State.Health.Status}}'
 
 # Lihat logs
 docker logs cms-artikel --tail 50
 
 # Restart jika perlu
 docker restart cms-artikel
-`
+```
 
 ## Environment Variables
 
