@@ -32,16 +32,16 @@ Marker lebih jujur.
 
 ## Status produksi (`20.20.20.173`, schema `artikel`)
 
-28 dari 29 migrasi di `supabase/migrations/` **sudah diterapkan**. Diverifikasi
-28 September 2026 lewat query marker read-only. #28 diterapkan 28 September 2026
-(backup `~/db-backups/pre-280002-2026-09-28.dump`, dry-run `begin…rollback` lebih
-dulu, lalu `COMMIT` + `NOTIFY`).
+Semua 29 migrasi di `supabase/migrations/` **sudah diterapkan**. Diverifikasi
+28 September 2026 lewat query marker read-only. #28 dan #29 sama-sama diterapkan
+28 September 2026 (backup `~/db-backups/pre-280002-2026-09-28.dump` dan
+`pre-280003-2026-09-28.dump`, dry-run `begin…rollback` lebih dulu, lalu `COMMIT`
++ `NOTIFY`).
 
-**#29 belum diterapkan ke produksi.** Ia mengubah perilaku yang terlihat pengguna
-(penghapusan site tidak lagi ditolak) dan harus naik **bersama** deploy aplikasi:
-route `DELETE /api/cms/sites/[siteId]` sudah mencabut penolakan 409-nya, jadi
-kalau app naik lebih dulu, penghapusan berakhir di galat FK mentah; kalau migrasi
-naik lebih dulu, UI melaporkan `orphanedArticles` yang tidak dikirim server.
+#29 naik **bersama** deploy aplikasi, dan memang harus begitu: route
+`DELETE /api/cms/sites/[siteId]` mencabut penolakan 409-nya, jadi app duluan
+berakhir di galat FK mentah, migrasi duluan membuat UI melaporkan
+`orphanedArticles` yang tidak dikirim server.
 
 | # | Migrasi | Marker pembuktian | Status |
 |---|---|---|---|
@@ -73,7 +73,7 @@ naik lebih dulu, UI melaporkan `orphanedArticles` yang tidak dikirim server.
 | 26 | `202609190001_security_hardening.sql` | `has_site_role_for`, MIME allowlist non-null, policy `members read site media assets` | ✅ |
 | 27 | `202609280001_automation_article_actor.sql` | fungsi `current_article_actor`; `validate_article_write` memanggilnya; RPC memanggil `set_config('artikel.automation_actor', …)` | ✅ |
 | 28 | `202609280002_preserve_galleries_on_site_delete.sql` | `galleries.site_id` nullable **dan** `galleries_site_id_fkey`/`media_assets_site_id_fkey` = `set null`; `delete_site` tidak lagi memuat `delete from artikel.gallery_items` | ✅ |
-| 29 | `202609280003_orphan_articles_on_site_delete.sql` | `articles.site_id` nullable + `articles_site_id_fkey` = `set null`; `categories_site_id_fkey`/`tags_site_id_fkey` = `cascade`; fungsi `is_global_admin`; kategori global `tanpa-kategori`; indeks parsial `articles_orphan_slug_key` | ⬜ **belum di produksi** |
+| 29 | `202609280003_orphan_articles_on_site_delete.sql` | `articles.site_id` nullable + `articles_site_id_fkey` = `set null`; `categories_site_id_fkey`/`tags_site_id_fkey` = `cascade`; fungsi `is_global_admin`; kategori global `tanpa-kategori`; indeks parsial `articles_orphan_slug_key`; `delete_site` memuat `delete from artikel.article_sites` | ✅ |
 
 Query marker lengkap yang dipakai ada di bagian [Cara verifikasi ulang](#cara-verifikasi-ulang).
 

@@ -67,6 +67,46 @@ di-diff dulu terhadap repo sebelum ditimpa, direktori aplikasi di-backup ke
 `~/cms-artikel-pre-fase35-2026-09-28.tar.gz`, `.env` dan `.env.production`
 dikonfirmasi selamat sesudah ekstrak.
 
+### 28 September 2026 — migrasi #280003 + app (commit `0aa89cc`)
+
+Migrasi database dan aplikasi naik **bersama**, dan itu wajib: route
+`DELETE /api/cms/sites/[siteId]` mencabut penolakan 409 `SITE_NOT_EMPTY`-nya,
+jadi app duluan berakhir di galat FK mentah, migrasi duluan membuat UI
+melaporkan `orphanedArticles` yang tidak dikirim server.
+
+Perubahan perilaku yang terlihat pengguna: menghapus website **tidak lagi
+ditolak** saat masih berisi. Artikelnya jadi draf tak bertuan yang hanya
+terlihat admin global; kategori dan tag miliknya ikut terhapus.
+
+Dry-run terhadap produksi menangkap satu bug yang uji lokal lewatkan: artikel
+multi-site tetap terbit di website lain sesudah pemiliknya dihapus, karena
+CASCADE hanya membuang distribusi milik site yang dihapus. Diperbaiki sebelum
+`COMMIT`; rinciannya di `docs/MIGRATION-LEDGER.md`.
+
+Urutan yang dijalankan:
+
+1. Inspeksi `docker compose ps` di stack Supabase bersama — 11 service sehat.
+2. `pg_dump -Fc` → `~/db-backups/pre-280003-2026-09-28.dump` (4.3M), diverifikasi
+   terbaca lewat `pg_restore -l` (3245 objek) — bukan sekadar file yang ada.
+3. Dry-run migrasi penuh di produksi dalam `begin … rollback`, termasuk benar-benar
+   memanggil `delete_site` pada website berisi lalu membatalkannya.
+4. `COMMIT` + `NOTIFY`, lalu 9 marker diverifikasi — termasuk marker #280001 dan
+   #280002 untuk memastikan tidak ada yang teregresi.
+5. Deploy app: `git archive HEAD` (297 berkas; satu-satunya yang cocok pola `.env`
+   adalah `.env.example`, templat berisi placeholder), SHA256 dicocokkan dua sisi,
+   `docker-compose.yml` dan `Dockerfile` di-diff dulu (identik), direktori app
+   di-backup ke `~/cms-artikel-pre-280003-2026-09-28.tar.gz`, `.env` dan
+   `.env.production` dicek md5 sebelum **dan** sesudah ekstrak (identik).
+
+Diverifikasi sesudah container naik:
+
+- Gerbang auth utuh: `/api-keys`, `/api-docs`, `/team`, `/sites`, `/gallery`, `/`
+  semua 307 → `/login`; `/login` 200; `/api/cms/sites` tanpa sesi 401.
+- 3 request → 3 nonce CSP unik; HSTS, `X-Frame-Options`, `X-Content-Type-Options`,
+  `Referrer-Policy` terpasang; `X-Powered-By` tidak ada.
+- Data utuh: 4 site, 4 artikel, 0 yatim, 10 baris distribusi — persis seperti
+  sebelum migrasi. Skema aplikasi lain (`utero_academy`) tidak tersentuh.
+
 ## Command Reference
 
 ### Deploy/Update Aplikasi
