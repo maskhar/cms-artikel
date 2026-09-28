@@ -423,7 +423,7 @@ curl -i -H "x-api-key: $AUTOMATION_KEY" \
 `artikel.validate_article_write` tanpa dukungan aktor otomasi, jadi harus
 diterapkan lebih dulu:
 
-1. `202609100014_create_upsert_automation_article_function.sql` (versi perbaikan)
+1. `202609100020_create_upsert_automation_article_function.sql` (versi perbaikan)
 2. `202609190001_security_hardening.sql`
 3. `202609280001_automation_article_actor.sql`
 

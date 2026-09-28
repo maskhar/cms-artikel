@@ -5,7 +5,7 @@
 Panduan lengkap untuk mengelola dan menggunakan Automation API dari dashboard CMS Artikel.
 
 > ✅ **`POST` sudah berfungsi** sejak 28 September 2026. Pepper ter-set di container
-> Edge Function, migrasi perbaikan RPC (`202609100014` versi baru +
+> Edge Function, migrasi perbaikan RPC (`202609100020` versi baru +
 > `202609280001`) sudah diterapkan ke produksi, dan bug pembacaan embed `sites`
 > di Edge Function (yang membuat **semua** key ditolak `401`) sudah ditutup.
 > Terverifikasi end-to-end lewat HTTP nyata; suite integrasi SQL 10/10 lulus.
@@ -501,7 +501,7 @@ Autentikasi beres, masalahnya di database. Dua kemungkinan utama:
 
 1. **Migrasi belum diterapkan.** RPC `artikel.upsert_automation_article` versi
    lama merujuk tabel `artikel.site_users` yang tidak pernah ada. Perlu
-   `202609100014` versi perbaikan **dan** `202609280001_automation_article_actor.sql`.
+   `202609100020` versi perbaikan **dan** `202609280001_automation_article_actor.sql`.
 2. **Slug bentrok.** `articles(site_id, slug)` unik. Pakai slug lain, atau
    perbarui artikel yang sudah ada lewat `external_id` yang sama.
 

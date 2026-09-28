@@ -2,7 +2,7 @@
 -- File: 202609280001_automation_article_actor.sql
 --
 -- Masalah yang ditutup di sini ditemukan 28 September 2026, saat memperbaiki
--- artikel.upsert_automation_article (202609100014). Memperbaiki RPC saja tidak
+-- artikel.upsert_automation_article (202609100020). Memperbaiki RPC saja tidak
 -- cukup: POST Automation API dengan status selain 'draft' tetap gagal.
 --
 -- Sebabnya artikel.validate_article_write menurunkan identitas aktor dari

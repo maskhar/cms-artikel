@@ -1,5 +1,5 @@
 -- Migration: Create upsert_automation_article function
--- File: 202609100014_create_upsert_automation_article_function.sql
+-- File: 202609100020_create_upsert_automation_article_function.sql
 -- Purpose: Atomic upsert operation for automation API with category resolution
 --
 -- Versi pertama file ini tidak pernah bisa dieksekusi sampai selesai. Diperbaiki

@@ -48,7 +48,7 @@ Test 7 dan 8 mengunci bug yang diperbaiki 28 September 2026. Jangan dihapus.
 
 **Prasyarat migrasi.** Suite ini butuh dua migrasi berikut sudah diterapkan:
 
-- `202609100014_create_upsert_automation_article_function.sql` (versi perbaikan)
+- `202609100020_create_upsert_automation_article_function.sql` (versi perbaikan)
 - `202609280001_automation_article_actor.sql`
 
 Tanpa yang kedua, Test 7 gagal dengan `New articles must start as draft`, karena
@@ -225,7 +225,7 @@ curl -i -H "x-api-key: $TEST_API_KEY" "$SUPABASE_URL/functions/v1/automation-api
 - `401 {"error":"Invalid or inactive API key"}` → key dicabut/kedaluwarsa, site
   nonaktif, atau `created_by` kosong.
 - `500` pada `POST` padahal `GET` berhasil → periksa apakah migrasi
-  `202609100014` versi perbaikan dan `202609280001` sudah diterapkan.
+  `202609100020` versi perbaikan dan `202609280001` sudah diterapkan.
 
 Log function:
 

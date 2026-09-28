@@ -1,5 +1,5 @@
 -- Migration: Add external_id column for automation API
--- File: 202609100013_add_external_id_to_articles.sql
+-- File: 202609100019_add_external_id_to_articles.sql
 -- Purpose: Enable idempotent article creation via external system IDs
 
 -- Add external_id column to articles table

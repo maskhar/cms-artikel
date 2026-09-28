@@ -1,5 +1,5 @@
 -- Migration: Add RLS policies for automation API access
--- File: 202609100015_add_automation_api_rls_policies.sql
+-- File: 202609100021_add_automation_api_rls_policies.sql
 -- Purpose: DIBATALKAN. Migrasi ini sekarang sengaja tidak membuat policy apa pun.
 --
 -- Isi asli file ini membuat enam policy (automation_api_insert_articles,
@@ -39,6 +39,6 @@ DROP POLICY IF EXISTS automation_api_insert_categories ON artikel.categories;
 DROP POLICY IF EXISTS automation_api_select_categories ON artikel.categories;
 
 -- Otorisasi tulis lewat Automation API ditegakkan di dua tempat lain:
---   - artikel.upsert_automation_article (202609100014) memverifikasi penulis punya
+--   - artikel.upsert_automation_article (202609100020) memverifikasi penulis punya
 --     peran aktif di site, dan hanya bisa dipanggil service_role.
 --   - Edge Function automation-api memverifikasi API key ber-scope satu site.

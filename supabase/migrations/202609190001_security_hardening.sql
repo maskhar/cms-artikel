@@ -163,6 +163,17 @@ drop policy if exists "cms members read global media storage" on storage.objects
 drop policy if exists "cms members upload global media storage" on storage.objects;
 drop policy if exists "cms owners delete global media storage" on storage.objects;
 
+-- Varian TANPA prefix "cms " dari 202609110019. 202609130001 membuat versi
+-- ber-prefix dengan nama berbeda, sehingga drop-nya tidak pernah mengenai yang
+-- lama. Di produksi ketiganya kebetulan tidak ada (snapshot Fase 0 hanya memuat
+-- yang ber-prefix), jadi drop ini no-op di sana — tetapi pada database hasil
+-- `supabase db reset` ketiganya hidup dan memberi setiap anggota CMS akses
+-- baca/tulis/hapus media SEMUA tenant di bucket artikel-media. Ditemukan
+-- 28 September 2026 lewat diff struktur produksi vs database bersih.
+drop policy if exists "members read global media storage" on storage.objects;
+drop policy if exists "members upload global media storage" on storage.objects;
+drop policy if exists "owners delete global media storage" on storage.objects;
+
 -- =====================================================================
 -- 6. Bucket artikel-media — blokir konten aktif
 -- ---------------------------------------------------------------------
