@@ -43,14 +43,13 @@ Platform multi-tenant untuk membuat, mereview, menyetujui, dan menerbitkan artik
 | Dokumen | Deskripsi |
 |---------|-----------|
 | [docs/README.md](docs/README.md) | Indeks dokumentasi aktif, referensi, dan arsip |
-| [API.md](docs/API.md) | Kontrak final Automation API dan Public Read API |
+| [API.md](docs/API.md) | Kontrak final Automation API dan Public Read API (sumber kebenaran) |
 | [PRD.md](docs/PRD.md) | Product Requirements Document |
 | [SDD.md](docs/SDD.md) | System Design Document |
 | [TODO.md](docs/TODO.md) | Development checklist & roadmap |
 | [API-INTEGRATION.md](docs/API-INTEGRATION.md) | Panduan integrasi Public Read API |
 | [DEPLOYMENT-TENANT-API.md](docs/DEPLOYMENT-TENANT-API.md) | Deployment runbook lengkap |
 | [DEPLOYMENT-CMS.md](docs/DEPLOYMENT-CMS.md) | Operasional container CMS production |
-| [UNIFIED-CMS-API-DESIGN.md](docs/UNIFIED-CMS-API-DESIGN.md) | Desain arsitektur Automation API |
 
 ---
 
@@ -197,26 +196,43 @@ Duration  1.03s
 
 ### Production
 
+Aplikasi dan database ada di **dua mesin berbeda**:
+
 ```
-SSH: maskhar@20.20.20.173
-Path: ~/apps/cms-artikel
-Container: cms-artikel (port 3002 → 3000)
-Domain: https://cms.carubra.com
-Status: healthy
+Aplikasi   : workstation lokal (repo ini)   → cms-artikel:3002 → cms.carubra.com
+Database   : maskhar@20.20.20.173           → supabase-db      → supabase.carubra.com
 ```
+
+`cms.carubra.com` dilayani container `cms-artikel` **di workstation** — terbukti
+lewat uji stop/start container. Mekanisme hop antara Cloudflare dan container
+belum diverifikasi; lihat `docs/DEPLOYMENT-CMS.md`. Server `20.20.20.173` hanya
+menjalankan Supabase.
+
+> ⚠️ Kedua mesin sama-sama punya container `cms-artikel` di `127.0.0.1:3002`.
+> Yang di server **tidak menerima trafik** — sisa deploy salah sasaran
+> 28 September 2026. Verifikasi status produksi hanya sah lewat
+> `https://cms.carubra.com`; probe localhost tidak bisa membedakan keduanya.
+> Lihat `docs/DEPLOYMENT-CMS.md`.
 
 ### Deploy Script
 
+Dijalankan **di workstation**, bukan lewat SSH:
+
 ```bash
-# Build & restart container
-ssh maskhar@20.20.20.173 "cd ~/apps/cms-artikel && \
-  docker compose up -d --build cms-artikel"
+powershell -NoProfile -ExecutionPolicy Bypass -File scripts/deploy.ps1
+```
 
-# Check logs
+Skrip itu menandai image rollback, build, memeriksa matcher middleware di dalam
+image, menukar container, lalu memverifikasi gerbang auth lewat domain publik —
+dan gagal keras kalau ada yang tidak 307/200 sesuai harapan.
+
+Manual:
+
+```bash
+docker tag cms-artikel-cms-artikel cms-artikel-cms-artikel:rollback-$(date +%F)
+docker compose build
+docker compose up -d
 docker compose logs -f cms-artikel
-
-# Health check
-curl -I https://cms.carubra.com
 ```
 
 ### Database Migration
@@ -256,9 +272,11 @@ docker compose exec -T db psql -U postgres -d postgres \
 
 ### 🚧 In Progress
 
-- [ ] Edge Function automation API (`artikel-cms`)
-- [ ] Migration `external_id` untuk idempotency
-- [ ] PostgreSQL function `upsert_automation_article`
+- [x] Edge Function Automation API (`automation-api`) — `GET` (verifikasi key) berfungsi
+- [ ] `POST /functions/v1/automation-api` — masih 500, lihat catatan di bawah
+- [ ] PostgreSQL function `artikel.upsert_automation_article` — rujuk tabel `artikel.site_users` yang tidak ada serta kolom `featured_image`/`meta_keywords` yang tidak ada; kontrak request sudah benar dan tidak berubah setelah perbaikan. Detail: [`docs/API.md`](docs/API.md)
+
+Edge Function `artikel-cms` sudah dipensiunkan dan tidak pernah ter-deploy; dokumennya dipindah ke [`docs/archive/obsolete-artikel-cms/`](docs/archive/obsolete-artikel-cms/).
 
 ### 📋 Planned
 
@@ -301,9 +319,9 @@ Internal project — proprietary license.
 ## 📞 Support
 
 **DevOps Contact:**
-- SSH: `maskhar@20.20.20.173`
-- CMS: `~/apps/cms-artikel`
+- SSH: `maskhar@20.20.20.173` — **khusus Supabase**, aplikasi tidak ada di sini
 - Supabase: `~/docker/supabase/supabase-1.26.05/docker`
+- CMS: berjalan di workstation; deploy `powershell -NoProfile -ExecutionPolicy Bypass -File scripts/deploy.ps1`
 
 **Dokumentasi:**
 - [Panduan Lengkap](docs/PANDUAN-PENGGUNAAN.md)

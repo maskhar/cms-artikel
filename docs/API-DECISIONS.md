@@ -2,6 +2,11 @@
 
 **Tanggal:** 10 September 2026
 
+> ⚠️ **Catatan historis, bukan acuan integrasi.** Keputusan di bawah menyebut
+> endpoint `POST /functions/v1/artikel-cms`, yang sesudahnya dipensiunkan dan
+> tidak pernah ter-deploy. Yang berlaku sekarang `automation-api`; kontraknya
+> di [`docs/API.md`](API.md).
+
 | Item lama | Keputusan | Pengganti/alasan |
 | --- | --- | --- |
 | Gagasan satu API menggantikan seluruh CMS | Dibatalkan | CMS admin perlu Auth/RLS dan tetap memakai `/api/cms/*`. |
@@ -12,4 +17,4 @@
 | Action publish/archive/get | Ditunda | Dibangun setelah `article.upsert` idempotent lolos UAT. |
 | Hardcoded kategori pada website | Tetap tidak direkomendasikan | Ikuti `docs/API-INTEGRATION.md`; endpoint kategori publik dinilai terpisah. |
 
-Dokumen sumber keputusan teknis: `docs/UNIFIED-CMS-API-DESIGN.md`.
+Dokumen sumber keputusan teknis: `docs/archive/obsolete-artikel-cms/UNIFIED-CMS-API-DESIGN.md` (diarsipkan). Kontrak yang berlaku ada di `docs/API.md`.

@@ -1,23 +1,30 @@
 """
 Python Client for Artikel CMS Automation API
 Usage: python examples/python-client.py
+
+STATUS: POST ke Automation API saat ini mengembalikan 500. Penyebabnya bug di
+fungsi database artikel.upsert_automation_article, bukan di client ini. Kontrak
+request di bawah sudah benar dan tidak akan berubah setelah perbaikan.
+Lihat docs/API.md. GET pada endpoint yang sama berfungsi normal (check_site()).
 """
 
 import os
-import json
 import time
-from typing import List, Dict, Optional, Tuple
+from typing import List, Dict, Tuple
 from datetime import datetime
 import requests
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
-SUPABASE_URL = os.getenv('SUPABASE_URL', 'https://your-project.supabase.co')
-API_KEY = os.getenv('ARTIKEL_API_KEY')
+SUPABASE_URL = os.getenv('SUPABASE_URL', 'https://supabase.carubra.com')
+API_KEY = os.getenv('AUTOMATION_API_KEY')
 
 if not API_KEY:
-    raise ValueError('ARTIKEL_API_KEY environment variable not set')
+    raise ValueError(
+        'AUTOMATION_API_KEY environment variable not set. '
+        'Key otomasi berawalan "ak_live_"; buat lewat CMS: Pengaturan > API Keys.'
+    )
 
-API_ENDPOINT = f'{SUPABASE_URL}/functions/v1/artikel-cms'
+API_ENDPOINT = f'{SUPABASE_URL}/functions/v1/automation-api'
 
 
 class ArtikelAPIClient:
@@ -25,46 +32,71 @@ class ArtikelAPIClient:
 
     def __init__(self, api_key: str, base_url: str = SUPABASE_URL):
         self.api_key = api_key
-        self.endpoint = f'{base_url}/functions/v1/artikel-cms'
+        self.endpoint = f'{base_url}/functions/v1/automation-api'
         self.session = requests.Session()
         self.session.headers.update({
             'Content-Type': 'application/json',
-            'x-artikel-key': api_key,
+            'x-api-key': api_key,
         })
+
+    def check_site(self) -> Dict:
+        """
+        Verifikasi API key dan identitas site.
+
+        Ini satu-satunya jalur Automation API yang berfungsi penuh saat ini.
+
+        Returns:
+            {'success': True, 'site': {'id', 'name', 'domain', 'slug'}}
+        """
+        response = self.session.get(self.endpoint)
+        response.raise_for_status()
+        return response.json()
 
     def upsert_article(self, article_data: Dict) -> Dict:
         """
-        Create or update an article
-        
+        Create or update an article (upsert by external_id)
+
         Args:
             article_data: Dictionary containing article fields
-            
+
         Returns:
-            API response data
-            
+            {'success': True, 'site': {...}, 'data': [{'article_id', ...}]}
+
         Raises:
             requests.HTTPError: If API request fails
         """
+        # Body dikirim flat, bukan envelope {'action', 'data'}.
+        # Wajib: external_id, title, slug, content, category_name.
         payload = {
-            'action': 'article.upsert',
-            'data': {
-                'external_id': article_data['external_id'],
-                'title': article_data['title'],
-                'slug': article_data['slug'],
-                'content': article_data['content'],
-                'excerpt': article_data.get('excerpt'),
-                'category': article_data['category'],
-                'status': article_data.get('status', 'draft'),
-                'featured_image': article_data.get('featured_image'),
-                'meta_description': article_data.get('meta_description'),
-                'meta_keywords': article_data.get('meta_keywords'),
-                'published_at': article_data.get('published_at'),
-            }
+            'external_id': article_data['external_id'],
+            'title': article_data['title'],
+            'slug': article_data['slug'],
+            'content': article_data['content'],
+            'excerpt': article_data.get('excerpt'),
+            'category_name': article_data['category_name'],
+            'status': article_data.get('status', 'draft'),
+            'featured_image': article_data.get('featured_image'),
+            'meta_description': article_data.get('meta_description'),
+            'meta_keywords': article_data.get('meta_keywords'),
+            'published_at': article_data.get('published_at'),
         }
 
         response = self.session.post(self.endpoint, json=payload)
         response.raise_for_status()
         return response.json()
+
+    @staticmethod
+    def first_row(result: Dict) -> Dict:
+        """
+        Ambil baris pertama dari result['data'].
+
+        RPC memakai RETURNS TABLE sehingga data berupa list of dict dengan
+        kolom: article_id, revision_id, created_new, category_id.
+        """
+        data = result.get('data')
+        if isinstance(data, list):
+            return data[0] if data else {}
+        return data or {}
 
     def batch_upsert_articles(
         self,
@@ -95,10 +127,11 @@ class ArtikelAPIClient:
             for attempt in range(1, retry_attempts + 1):
                 try:
                     result = self.upsert_article(article)
+                    row = self.first_row(result)
                     return True, {
                         'external_id': article['external_id'],
-                        'article_id': result['data']['article_id'],
-                        'created': result['data']['created'],
+                        'article_id': row.get('article_id'),
+                        'created_new': row.get('created_new'),
                     }
                 except requests.HTTPError as e:
                     last_error = e
@@ -149,9 +182,9 @@ def example_create_article():
         'slug': 'python-best-practices-2026',
         'content': '<h1>Python Best Practices</h1><p>Here are the top practices...</p>',
         'excerpt': 'Learn the best practices for Python development in 2026.',
-        'category': 'Programming',
+        'category_name': 'Programming',
         'status': 'published',
-        'featured_image': 'https://example.com/images/python.jpg',
+        'featured_image': 'sites/contoh/articles/python.jpg',
         'meta_description': 'Complete guide to Python best practices',
         'meta_keywords': ['python', 'best practices', 'programming'],
         'published_at': datetime.utcnow().isoformat() + 'Z',
@@ -176,14 +209,15 @@ def example_update_article():
         'slug': 'python-best-practices-2026',
         'content': '<h1>Python Best Practices Updated</h1><p>Updated content...</p>',
         'excerpt': 'Updated guide to Python best practices.',
-        'category': 'Programming',
+        'category_name': 'Programming',
         'status': 'published',
     }
     
     try:
         result = client.upsert_article(article_data)
-        print(f'✓ Article updated: article_id={result["data"]["article_id"]}, '
-              f'created={result["data"]["created"]}')
+        row = client.first_row(result)
+        print(f'✓ Article updated: article_id={row.get("article_id")}, '
+              f'created_new={row.get("created_new")}')
     except requests.HTTPError as e:
         print(f'✗ Failed: {e.response.text}')
 
@@ -201,7 +235,7 @@ def example_batch_import():
             'slug': f'batch-article-{i}',
             'content': f'<p>Content for batch article {i}</p>',
             'excerpt': f'Excerpt for article {i}',
-            'category': 'Batch Import',
+            'category_name': 'Batch Import',
             'status': 'draft',
         }
         for i in range(1, 21)
@@ -249,7 +283,7 @@ def example_rss_import():
                 'slug': entry.title.lower().replace(' ', '-')[:50],
                 'content': entry.content[0].value if hasattr(entry, 'content') else entry.summary,
                 'excerpt': entry.summary[:200],
-                'category': 'RSS Import',
+                'category_name': 'RSS Import',
                 'status': 'draft',
                 'published_at': datetime(*entry.published_parsed[:6]).isoformat() + 'Z',
             })
@@ -264,7 +298,16 @@ def example_rss_import():
 def main():
     """Run all examples"""
     print('=== Artikel CMS Automation API - Python Client ===\n')
-    
+
+    # Verifikasi key dan site lebih dulu (jalur yang berfungsi).
+    print('Example 0: Verifikasi API key dan site')
+    try:
+        info = ArtikelAPIClient(API_KEY).check_site()
+        print(f'✓ Key valid untuk site: {info.get("site")}\n')
+    except requests.HTTPError as e:
+        print(f'✗ Gagal: {e.response.text}')
+        return
+
     example_create_article()
     example_update_article()
     example_batch_import()

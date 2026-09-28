@@ -450,6 +450,8 @@ Admin bisa lihat semua aktivitas:
 
 ```
 Scenario: Tenant mau akses CMS dari domain sendiri
+(cms.uteroindonesia.com di bawah ini CONTOH — belum ada DNS-nya.
+ Alias yang benar-benar aktif: cms.carubra.com dan cms.buzzerhood.com)
 
 Admin setup:
 1. Menu: CMS Domains
@@ -581,7 +583,7 @@ Docs lengkap:
 - docs/SDD.md (system design)
 - docs/API-INTEGRATION.md (panduan integrasi website)
 - docs/DEPLOYMENT-TENANT-API.md (deployment runbook)
-- docs/UNIFIED-CMS-API-DESIGN.md (automation API upcoming)
+- docs/API.md (kontrak Automation API dan Public Read API)
 - docs/TODO.md (development checklist)
 
 Session logs:
@@ -593,9 +595,9 @@ Session logs:
 ### Kontak DevOps
 
 ```
-SSH: maskhar@20.20.20.173
-CMS Path: ~/apps/cms-artikel
+SSH: maskhar@20.20.20.173   (khusus Supabase — aplikasi TIDAK ada di sini)
 Supabase: ~/docker/supabase/supabase-1.26.05/docker
+CMS: berjalan di workstation, deploy dengan `powershell -NoProfile -ExecutionPolicy Bypass -File scripts/deploy.ps1`
 Domain: cms.carubra.com (port 3002)
 Database: PostgreSQL schema artikel
 ```

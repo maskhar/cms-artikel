@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { dbErrorResponse } from "@/lib/api-error";
 import { z } from "zod";
 import { createClient } from "@/lib/supabase/server";
 
@@ -8,7 +9,7 @@ export async function GET() {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: "Unauthenticated" }, { status: 401 });
   const { data, error } = await supabase.schema("artikel").from("sites").select("id, name, domain, slug, is_active").order("name");
-  if (error) return NextResponse.json({ error: error.message }, { status: 400 });
+  if (error) return dbErrorResponse(error);
   return NextResponse.json({ data });
 }
 export async function POST(request: Request) {
@@ -19,7 +20,7 @@ export async function POST(request: Request) {
   if (!parsed.success) return NextResponse.json({ error: "Nama, domain, atau slug tidak valid." }, { status: 400 });
   const input = parsed.data;
   const { data, error } = await supabase.schema("artikel").from("sites").insert({ ...input, domain: input.domain.replace(/^https?:\/\//, "").replace(/\/$/, "") }).select("id, name, domain, slug, is_active").single();
-  if (error) return NextResponse.json({ error: error.code === "23505" ? "Domain atau slug sudah digunakan." : error.message }, { status: 400 });
+  if (error) return error.code === "23505" ? NextResponse.json({ error: "Domain atau slug sudah digunakan." }, { status: 409 }) : dbErrorResponse(error);
   return NextResponse.json({ data }, { status: 201 });
 }
 

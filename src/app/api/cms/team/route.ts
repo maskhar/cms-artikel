@@ -1,7 +1,8 @@
 import { NextResponse } from "next/server";
+import { dbErrorResponse } from "@/lib/api-error";
 import { z } from "zod";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { createClient } from "@/lib/supabase/server";
+import { requireGlobalAdmin } from "@/lib/auth";
 
 const assignmentSchema = z.object({
   email: z.string().trim().email().transform((value) => value.toLowerCase()),
@@ -10,24 +11,16 @@ const assignmentSchema = z.object({
   role: z.enum(["admin", "editor", "writer"]),
 });
 
-async function requireGlobalAdmin() {
-  const supabase = await createClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return null;
-  const { data: role } = await createAdminClient().schema("artikel").from("user_roles").select("id").eq("user_id", user.id).eq("role", "admin").eq("is_active", true).is("site_id", null).maybeSingle();
-  return role ? user : null;
-}
-
 export async function GET() {
-  const currentUser = await requireGlobalAdmin(); 
-  if (!currentUser) return NextResponse.json({ error: "Admin global diperlukan. Pastikan login menggunakan dev@gmail.com atau akun admin lain." }, { status: 403 });
-  
+  const session = await requireGlobalAdmin("Admin global diperlukan. Pastikan login menggunakan dev@gmail.com atau akun admin lain.");
+  if (session.response) return session.response;
+
   const admin = createAdminClient();
   
   // Fetch roles from database
   const { data: roles, error } = await admin.schema("artikel").from("user_roles").select("id, user_id, site_id, role, is_active, sites(name, domain)").order("role");
   
-  if (error) return NextResponse.json({ error: error.message }, { status: 400 });
+  if (error) return dbErrorResponse(error);
   
   // Get all unique user_ids from roles
   const userIds = [...new Set((roles ?? []).map(role => role.user_id))];
@@ -65,7 +58,8 @@ export async function GET() {
 }
 
 export async function POST(request: Request) {
-  const currentUser = await requireGlobalAdmin(); if (!currentUser) return NextResponse.json({ error: "Admin global diperlukan. Pastikan login menggunakan dev@gmail.com atau akun admin lain." }, { status: 403 });
+  const session = await requireGlobalAdmin("Admin global diperlukan. Pastikan login menggunakan dev@gmail.com atau akun admin lain.");
+  if (session.response) return session.response;
   const parsed = assignmentSchema.safeParse(await request.json());
   if (!parsed.success) return NextResponse.json({ error: "Email, website, atau role tidak valid." }, { status: 400 });
   const input = parsed.data;
@@ -84,13 +78,13 @@ export async function POST(request: Request) {
   const siteIds = [...new Set(siteIdsInput)];
   if (input.role !== "admin") {
     const { data: validSites, error: siteError } = await admin.schema("artikel").from("sites").select("id").in("id", siteIds).eq("is_active", true);
-    if (siteError) return NextResponse.json({ error: siteError.message }, { status: 400 });
+    if (siteError) return dbErrorResponse(siteError);
     if ((validSites ?? []).length !== siteIds.length) return NextResponse.json({ error: "Satu atau lebih website tidak valid atau nonaktif." }, { status: 400 });
   }
   const assignments: Array<{ user_id: string; site_id: string | null; role: "admin" | "editor" | "writer"; is_active: boolean }> = input.role === "admin"
     ? [{ user_id: target.id, site_id: null, role: input.role, is_active: true }]
     : siteIds.map((siteId) => ({ user_id: target.id, site_id: siteId, role: input.role, is_active: true }));
   const { data, error } = await admin.schema("artikel").from("user_roles").upsert(assignments as never, { onConflict: "user_id,site_id,role" }).select("id, site_id, role, is_active");
-  if (error) return NextResponse.json({ error: error.message }, { status: 400 });
+  if (error) return dbErrorResponse(error);
   return NextResponse.json({ data, created: data?.length ?? 0 }, { status: 201 });
 }

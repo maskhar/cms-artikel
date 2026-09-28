@@ -2,9 +2,9 @@
 
 **Versi:** 12 September 2026
 
-> Dokumen ini tetap berlaku untuk website pembaca melalui Public Read API `/api/v1/*`. Automation yang membuat atau memperbarui artikel mengikuti `docs/UNIFIED-CMS-API-DESIGN.md`; keduanya tidak saling menggantikan.
+> Dokumen ini tetap berlaku untuk website pembaca melalui Public Read API `/api/v1/*`. Automation yang membuat atau memperbarui artikel mengikuti `docs/API.md`; keduanya tidak saling menggantikan.
 
-> Dokumen ini tetap berlaku untuk website pembaca melalui Public Read API `/api/v1/*`. Automation yang membuat atau memperbarui artikel mengikuti `docs/UNIFIED-CMS-API-DESIGN.md`; keduanya tidak saling menggantikan.
+> Dokumen ini tetap berlaku untuk website pembaca melalui Public Read API `/api/v1/*`. Automation yang membuat atau memperbarui artikel mengikuti `docs/API.md`; keduanya tidak saling menggantikan.
 
 ## Konfigurasi website
 

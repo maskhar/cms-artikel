@@ -2,6 +2,10 @@
 
 **Diperbarui:** 10 September 2026
 
+> ⚠️ Item yang menyebut Edge Function `artikel-cms` sudah tidak berlaku —
+> function itu dipensiunkan dan tidak pernah ter-deploy. Penggantinya
+> `automation-api`; kontraknya di [`docs/API.md`](API.md).
+
 ## Fase 0 — Persiapan
 - [x] Setujui PRD dan SDD.
 - [x] Pilih Next.js TypeScript dan `pnpm`.

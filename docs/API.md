@@ -1,5 +1,18 @@
 # Automation API Artikel
 
+> ## ✅ STATUS: Automation API `POST` berfungsi (sejak 28 September 2026)
+>
+> Peringatan "POST belum berfungsi" **dicabut**. Tiga blocker produksi sudah ditutup dan diverifikasi langsung di server:
+>
+> - `ARTIKEL_API_KEY_PEPPER` kini ter-set di container `supabase-edge-functions`. Sebelumnya function gagal-aman dengan `500 {"error":"Automation API is not configured"}`.
+> - `artikel.upsert_automation_article` diganti versi perbaikan: tidak lagi merujuk tabel `artikel.site_users` yang tidak pernah ada, memakai kolom `featured_image_path` yang benar, dan menulis revisi dengan `version` / `snapshot` / `change_note` / `created_by`.
+> - Migrasi `202609280001_automation_article_actor.sql` diterapkan, sehingga `status` selain `draft` bisa dikirim dalam satu panggilan.
+> - Edge Function salah membaca embed `sites!inner(...)` sebagai array (`sites[0]`) padahal PostgREST mengembalikan **objek** untuk relasi to-one. Akibatnya `site` selalu `undefined` dan **setiap** key — termasuk yang sah — ditolak `401 {"error":"Invalid or inactive API key"}`. Kini menangani kedua bentuk.
+>
+> Diverifikasi end-to-end lewat HTTP nyata terhadap produksi, memakai API key sementara yang langsung dicabut sesudahnya: `GET` → `200` + identitas site, `POST` → `200` `created_new=true`, `POST` ulang dengan `external_id` sama → `200` `created_new=false`, payload tak lengkap → `400`, key salah → `401`. Header `X-RateLimit-*` hadir dan menurun tiap request. Suite integrasi SQL 10/10 lulus terhadap database produksi (seluruhnya di-rollback).
+>
+> Rate limit **aktif**: 120 request per 60 detik per API key, dengan header `X-RateLimit-*` dan `Retry-After` pada `429`.
+
 Dokumentasi diperbarui **12 September 2026, 03:46 ICT (UTC+7)** berdasarkan kode repository. Waktu ini menandai revisi dokumentasi, bukan deployment semua endpoint. Versi Edge Function di server belum diverifikasi ulang pada revisi ini.
 
 ## Riwayat perubahan API

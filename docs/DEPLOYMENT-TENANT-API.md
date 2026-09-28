@@ -12,9 +12,9 @@ Dokumen ini menjadi runbook deployment CMS Docker, pendaftaran tenant, alias CMS
 ## 1. Arsitektur
 
 ```text
-cms.carubra.com ───────────────┐
-cms.uteroindonesia.com ────────┼─ tunnel/reverse proxy ─ cms-artikel:3000
-cms.buzzerhood.com ────────────┘
+cms.carubra.com ───────────────┐   (aktif)
+cms.buzzerhood.com ────────────┼─ tunnel/reverse proxy ─ cms-artikel:3000
+cms.uteroindonesia.com ────────┘   (CONTOH — belum dikonfigurasi, tidak resolve)
                                          │
                                          ▼
                               supabase.carubra.com
@@ -24,6 +24,12 @@ uteroindonesia.com ─┐
 buzzerhood.com ─────┼─ HTTPS + X-Artikel-Key ─ cms.carubra.com/api/v1
 website tenant lain ┘
 ```
+
+> Alias CMS yang benar-benar aktif per 29 September 2026 hanya `cms.carubra.com`
+> dan `cms.buzzerhood.com`. `cms.uteroindonesia.com` dipakai di dokumen ini
+> sebagai **contoh alur pendaftaran alias**, bukan host yang sudah ada — DNS-nya
+> tidak resolve. Hostname tenant Utero yang terdaftar di `artikel.sites` adalah
+> `uteroindonesia.com` (website konsumen), bukan alias CMS.
 
 - Satu container CMS melayani seluruh alias CMS.
 - Seluruh tenant memakai database dan schema `artikel` yang sama.
@@ -144,9 +150,9 @@ curl -I https://cms.carubra.com/login
 Semua alias menunjuk origin sama:
 
 ```text
-cms.carubra.com              → http://127.0.0.1:3000
-cms.uteroindonesia.com       → http://127.0.0.1:3000
-cms.buzzerhood.com           → http://127.0.0.1:3000
+cms.carubra.com              → http://127.0.0.1:3000   (aktif)
+cms.buzzerhood.com           → http://127.0.0.1:3000   (aktif)
+cms.uteroindonesia.com       → http://127.0.0.1:3000   (contoh, belum dibuat)
 ```
 
 Tunnel harus meneruskan header `Host` atau `X-Forwarded-Host`.
@@ -174,7 +180,9 @@ Contoh tenant `uteroindonesia.com`:
 4. Buka **Tag** dan buat tag sesuai kebutuhan tenant.
 5. Buat akun pada Supabase Auth.
 6. Buka **Tim dan Role** lalu beri role `editor` atau `writer` untuk tenant tersebut.
-7. Opsional: daftarkan `cms.uteroindonesia.com` pada **CMS Domains**.
+7. Opsional: daftarkan alias CMS milik tenant (misalnya `cms.uteroindonesia.com`)
+   pada **CMS Domains**. Langkah ini belum pernah dijalankan untuk Utero —
+   alias tersebut belum ada DNS-nya.
 8. Buat API key production pada **API Keys** untuk tenant tersebut.
 9. Simpan key saat tampil. Nilai penuh tidak dapat dilihat lagi.
 

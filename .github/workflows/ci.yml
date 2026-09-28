@@ -1,0 +1,65 @@
+name: CI
+
+# Fase 5.6. Sebelum ini tidak ada CI sama sekali: satu-satunya penjaga adalah
+# ingatan orang untuk menjalankan tes sebelum deploy. Gerbang keamanan yang
+# ditutup di Fase 1–3 sekarang punya tes yang mengunci keputusannya
+# (tests/integration/*-authz, src/proxy.test.ts, src/lib/sanitize-html.test.ts);
+# alur kerja ini yang memastikan tes itu benar-benar dijalankan.
+
+on:
+  push:
+    branches: [main, "fix/**", "security/**"]
+  pull_request:
+    branches: [main]
+
+# Push beruntun ke branch yang sama membatalkan run lama.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    env:
+      # Nilai dummy, bukan rahasia. `next build` mengevaluasi modul yang memanggil
+      # required() saat mengumpulkan halaman, jadi variabel ini harus ada — tapi
+      # tidak boleh pernah diisi nilai produksi: CI tidak menyentuh database.
+      NEXT_PUBLIC_SUPABASE_URL: https://supabase.invalid
+      NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: ci-publishable-key
+      SUPABASE_SERVICE_ROLE_KEY: ci-service-role-key
+      ARTIKEL_API_KEY_PEPPER: ci-pepper
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          # Dibaca dari field packageManager di package.json.
+          run_install: false
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      # Empat gerbang dijalankan terpisah supaya yang gagal terbaca langsung dari
+      # nama step, bukan dari menggulir log gabungan.
+      - name: Typecheck
+        run: npx tsc --noEmit
+
+      - name: Lint
+        # eslint keluar non-nol pada error; warning pre-existing tidak memblokir.
+        run: pnpm lint
+
+      - name: Test
+        run: pnpm test
+
+      - name: Build
+        run: pnpm build

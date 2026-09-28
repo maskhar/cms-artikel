@@ -1,9 +1,10 @@
 "use client";
 
-import { FormEvent, useState, useEffect, Suspense } from "react";
+import { FormEvent, useState, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Image from "next/image";
 import { createClient } from "@/lib/supabase/client";
+import { SESSION_TIMESTAMP_KEY } from "@/lib/session-policy";
 
 function LoginForm() {
   const [error, setError] = useState("");
@@ -11,12 +12,13 @@ function LoginForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
 
-  useEffect(() => {
-    const reason = searchParams.get("reason");
-    if (reason === "session_expired") {
-      setError("Sesi Anda telah berakhir setelah 6 jam. Silakan masuk kembali.");
-    }
-  }, [searchParams]);
+  // Diturunkan langsung dari URL, bukan lewat setState di effect (effect
+  // memicu cascading render dan memblokir build karena aturan lint React).
+  const expiredNotice =
+    searchParams.get("reason") === "session_expired"
+      ? "Sesi Anda telah berakhir setelah 6 jam. Silakan masuk kembali."
+      : "";
+  const message = error || expiredNotice;
 
   async function signIn(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -27,8 +29,9 @@ function LoginForm() {
     });
     if (authError) { setError(authError.message); setLoading(false); return; }
     
-    // Set session start time
-    localStorage.setItem("artikel_session_start", Date.now().toString());
+    // Penanda client (UX). Cookie httpOnly padanannya diset proxy.ts saat
+    // navigasi pertama setelah login.
+    localStorage.setItem(SESSION_TIMESTAMP_KEY, Date.now().toString());
     
     router.push("/"); router.refresh();
   }
@@ -50,7 +53,7 @@ function LoginForm() {
             Password
             <input required name="password" type="password" autoComplete="current-password" className="mt-1.5 w-full rounded-xl border border-slate-200 px-3 py-3 outline-none focus:border-[#CE181E] focus:ring-2 focus:ring-[#CE181E]/20" />
           </label>
-          {error && <p role="alert" className="rounded-xl bg-red-50 p-3 text-sm text-red-700">{error}</p>}
+          {message && <p role="alert" className="rounded-xl bg-red-50 p-3 text-sm text-red-700">{message}</p>}
           <button disabled={loading} className="w-full rounded-xl bg-[#CE181E] py-3 text-sm font-semibold text-white hover:bg-[#B01519] disabled:opacity-60 transition-colors">
             {loading ? "Memproses..." : "Masuk"}
           </button>

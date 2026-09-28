@@ -1,255 +1,246 @@
 # Test Suite: Automation API
 
-Comprehensive test coverage for the Artikel CMS Automation API feature.
+Cakupan tes untuk fitur Automation API Artikel CMS.
 
-## Test Structure
+> Ditulis ulang 28 September 2026. Versi sebelumnya mendokumentasikan hal-hal yang
+> tidak ada: tabel `artikel.site_users`, kolom `artikel.sites.theme_config`, dan
+> kolom `artikel.api_keys` bernama `user_id`/`name`/`key_hash`/`is_active`. Skrip
+> setup di dalamnya tidak bisa dijalankan sama sekali, dan blok "expected output"
+> menyalin keluaran suite lama yang juga rusak. Semua sudah disamakan dengan
+> skema serta skrip tes yang nyata.
+
+## Struktur
 
 ```
 tests/
 ├── integration/
-│   └── test_upsert_automation_article.sql   # PostgreSQL function tests
+│   └── test_upsert_automation_article.sql   # Tes fungsi PostgreSQL
 └── e2e/
-    ├── test_automation_api.sh                # Bash E2E tests
-    └── test_automation_api.ps1               # PowerShell E2E tests
+    ├── test_automation_api.sh                # Tes E2E (bash + curl + jq)
+    └── test_automation_api.ps1               # Tes E2E (PowerShell)
 ```
 
 ## Integration Tests
 
-**Purpose:** Validate database function logic in isolation
+**Tujuan:** menguji `artikel.upsert_automation_article` langsung di database,
+tanpa Edge Function.
 
-**Coverage:**
-- ✓ Article creation with new category
-- ✓ Article update (idempotency via external_id)
-- ✓ Slug conflict detection
-- ✓ Tenant isolation (multi-site)
-- ✓ Category reuse
+Seluruh suite berjalan dalam satu transaksi dan selalu `ROLLBACK` di akhir, jadi
+aman dijalankan terhadap database berisi data. Tetap disarankan memakai database
+sekali pakai.
 
-**Run locally:**
+**Cakupan:**
+
+| Test | Yang diuji |
+|---|---|
+| 1 | Artikel baru + kategori baru + revisi pertama (`version=1`, `snapshot` terisi) |
+| 2 | Upsert idempoten lewat `external_id`, revisi bertambah jadi `version=2` |
+| 3 | Slug bentrok di site yang sama ditolak |
+| 4 | Isolasi tenant: `external_id` sama di dua site tetap terpisah |
+| 5 | Kategori dipakai ulang tanpa memandang kapitalisasi |
+| 6 | Penulis tanpa peran aktif di site ditolak (termasuk peran `is_active=false`) |
+| 7 | **Regresi:** `status='published'` langsung dari satu panggilan |
+| 8 | **Regresi:** `featured_image` masuk ke kolom `featured_image_path`; `meta_keywords` tidak error |
+| 9 | Site tidak dikenal atau nonaktif ditolak |
+| 10 | Penegakan workflow tetap berlaku saat tidak ada aktor berwenang |
+
+Test 7 dan 8 mengunci bug yang diperbaiki 28 September 2026. Jangan dihapus.
+
+**Prasyarat migrasi.** Suite ini butuh dua migrasi berikut sudah diterapkan:
+
+- `202609100020_create_upsert_automation_article_function.sql` (versi perbaikan)
+- `202609280001_automation_article_actor.sql`
+
+Tanpa yang kedua, Test 7 gagal dengan `New articles must start as draft`, karena
+`artikel.validate_article_write` menurunkan identitas aktor dari `auth.uid()` yang
+selalu NULL di jalur `service_role`.
+
+**Jalankan:**
 
 ```bash
-psql -h localhost -U postgres -d postgres -f tests/integration/test_upsert_automation_article.sql
+psql -h localhost -U postgres -d postgres -v ON_ERROR_STOP=1 -f tests/integration/test_upsert_automation_article.sql
 ```
 
-**Expected output:**
+Terhadap Supabase self-hosted, `psql` ada di dalam container database:
+
+```bash
+docker exec -i supabase-db psql -U postgres -d postgres -v ON_ERROR_STOP=1 < tests/integration/test_upsert_automation_article.sql
 ```
-Test 1: PASSED
-Test 2: PASSED
-Test 3: PASSED - Slug conflict detected correctly
-Test 4: PASSED
-Test 5: PASSED
-=== All Integration Tests Completed ===
-```
+
+**Keluaran yang diharapkan:** setiap test mencetak `Test N: PASSED`, diakhiri
+`=== All Integration Tests Completed (transaksi di-rollback) ===`. Assertion
+memakai `ASSERT` di dalam blok `DO`, jadi kegagalan membuat `psql` keluar dengan
+status bukan nol — bukan sekadar mencetak teks.
 
 ## E2E Tests
 
-**Purpose:** Validate full API flow including authentication, validation, and database operations
+**Tujuan:** menguji alur penuh lewat Edge Function, termasuk autentikasi API key
+dan validasi payload.
 
-**Coverage:**
-- ✓ Create new article via API
-- ✓ Update existing article (idempotency)
-- ✓ Invalid API key rejection
-- ✓ Missing required field validation
-- ✓ Invalid slug format validation
-- ✓ Rate limiting (optional)
-- ✓ Category reuse
+> ⚠️ Tes ini menulis artikel sungguhan ke site milik API key yang dipakai, dan
+> tidak membersihkannya sendiri. **Jangan jalankan terhadap produksi.** Pakai site
+> khusus tes. Semua `external_id` diberi prefix `e2e-<unix timestamp>` agar mudah
+> dicari dan dihapus lewat CMS.
 
-**Prerequisites:**
+**Endpoint:** `POST|GET {SUPABASE_URL}/functions/v1/automation-api`
+**Header autentikasi:** `x-api-key: ak_live_...`
+**Body:** flat JSON (bukan envelope `{action, data}`).
+
+**Cakupan:**
+
+| Test | Yang diuji |
+|---|---|
+| 1 | `GET` memverifikasi API key dan mengembalikan identitas site |
+| 2 | API key tidak dikenal ditolak `401` |
+| 3 | Artikel baru dibuat (`created_new=true`) |
+| 4 | Upsert idempoten: `external_id` sama memperbarui artikel yang sama |
+| 5 | Field wajib hilang ditolak `400` (`title`, `slug`, `content`, `category_name`) |
+| 6 | Status tidak dikenal ditolak `400` |
+| 7 | Kategori dipakai ulang antar-artikel |
+
+Test 1 bersifat gerbang: kalau gagal, sisa test tidak dijalankan.
+
+Tidak ada tes rate limit. `consume_api_key_rate_limit` belum aktif di
+`automation-api` yang ter-deploy; tes lama yang mengirim 125 request hanya
+menciptakan 125 artikel sampah tanpa membuktikan apa pun. Tidak ada pula tes
+"invalid slug format" — API memang tidak pernah memvalidasi bentuk slug.
+
+**Prasyarat:**
 
 ```bash
-# Set environment variables
-export SUPABASE_URL="http://localhost:54321"
-export TEST_API_KEY="your-test-api-key"
+export SUPABASE_URL="https://supabase.example.test"
+export TEST_API_KEY="ak_live_..."
 ```
 
-**Run tests (Bash):**
+Bash membutuhkan `curl` dan `jq`.
+
+**Jalankan (Bash):**
 
 ```bash
 bash tests/e2e/test_automation_api.sh
 ```
 
-**Run tests (PowerShell):**
+**Jalankan (PowerShell):**
 
 ```powershell
 .\tests\e2e\test_automation_api.ps1
 ```
 
-**Expected output:**
-```
-=== E2E Test Suite: Automation API ===
-Test 1: Create new article
-✓ Test 1 PASSED: Article created with ID ...
-Test 2: Update existing article
-✓ Test 2 PASSED: Article updated (not created)
-Test 3: Invalid API key
-✓ Test 3 PASSED: Invalid API key rejected
-Test 4: Missing required field (title)
-✓ Test 4 PASSED: Missing title rejected
-Test 5: Invalid slug format
-✓ Test 5 PASSED: Invalid slug rejected
-Test 6: Category reuse
-✓ Test 6 PASSED: Category reused correctly
-=== All E2E Tests Completed Successfully ===
-```
+Kedua skrip mencetak `PASS`/`FAIL` per test, menjalankan seluruh test sampai
+selesai, lalu menutup dengan ringkasan `=== Ringkasan: N lulus, M gagal ===` dan
+keluar dengan status 1 bila ada yang gagal.
 
-## Test Data Setup
+## Menyiapkan Data Tes
 
-**Create test site and user:**
+### Site, user, dan peran
+
+`artikel.sites.slug` bersifat `NOT NULL`; tidak ada kolom `theme_config`. Tabel
+peran yang nyata adalah `artikel.user_roles` (`user_id`, `site_id`, `role`,
+`is_active`); `site_id` NULL berarti admin global.
 
 ```sql
--- Test site
-INSERT INTO artikel.sites (id, name, domain, theme_config)
+INSERT INTO artikel.sites (id, name, domain, slug)
 VALUES (
   '00000000-0000-0000-0000-000000000001',
   'Test Site',
-  'test.example.com',
-  '{}'::jsonb
+  'test.example.test',
+  'test-site'
 );
 
--- Test user
 INSERT INTO auth.users (id, email)
 VALUES (
   '00000000-0000-0000-0000-000000000002',
-  'test@example.com'
+  'test@example.test'
 );
 
--- Link user to site
-INSERT INTO artikel.site_users (site_id, user_id, role)
+INSERT INTO artikel.user_roles (user_id, site_id, role, is_active)
 VALUES (
-  '00000000-0000-0000-0000-000000000001',
   '00000000-0000-0000-0000-000000000002',
-  'admin'
-);
-
--- Create test API key
-INSERT INTO artikel.api_keys (site_id, user_id, name, key_hash, is_active)
-VALUES (
   '00000000-0000-0000-0000-000000000001',
-  '00000000-0000-0000-0000-000000000002',
-  'Test API Key',
-  encode(digest('test-key-local-123', 'sha256'), 'hex'),
+  'admin',
   true
 );
 ```
 
-## Continuous Integration
+### API key
 
-**Add to CI/CD pipeline:**
+**Buat lewat aplikasi, bukan SQL.** Kolom `artikel.api_keys.secret_hash` berisi
+SHA-256 dari `"<key mentah>:<ARTIKEL_API_KEY_PEPPER>"`. Pepper itu rahasia
+runtime, tidak ada di repo, dan tidak bisa direproduksi dari SQL. Key yang
+disisipkan manual tanpa pepper yang benar akan selalu ditolak `401`.
 
-```yaml
-# .github/workflows/test.yml
-name: Test Automation API
+Lewat UI: **Pengaturan → API Keys**.
 
-on: [push, pull_request]
+Lewat API (perlu sesi login CMS):
 
-jobs:
-  integration-tests:
-    runs-on: ubuntu-latest
-    services:
-      postgres:
-        image: postgres:15
-        env:
-          POSTGRES_PASSWORD: postgres
-        options: >-
-          --health-cmd pg_isready
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 5
-    steps:
-      - uses: actions/checkout@v3
-      - name: Run integration tests
-        run: |
-          psql -h localhost -U postgres -d postgres -f tests/integration/test_upsert_automation_article.sql
-
-  e2e-tests:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v3
-      - name: Setup Supabase CLI
-        run: |
-          npm install -g supabase
-          supabase start
-      - name: Deploy function
-        run: supabase functions deploy artikel-cms
-      - name: Run E2E tests
-        env:
-          SUPABASE_URL: http://localhost:54321
-          TEST_API_KEY: ${{ secrets.TEST_API_KEY }}
-        run: bash tests/e2e/test_automation_api.sh
+```bash
+curl -X POST "$CMS_URL/api/cms/api-keys" \
+  -H "Content-Type: application/json" \
+  -H "Cookie: $CMS_SESSION_COOKIE" \
+  -d '{"siteId":"00000000-0000-0000-0000-000000000001","label":"Test E2E"}'
 ```
 
-## Test Maintenance
+Responsnya memuat `data.key` berawalan `ak_live_`. **Nilai mentah itu hanya
+ditampilkan sekali**; simpan langsung ke `TEST_API_KEY`.
 
-**When to update tests:**
+Yang bisa diperiksa lewat SQL hanyalah metadata, bukan nilai key:
 
-1. **New validation rules** → Add validation test case in E2E
-2. **Database schema changes** → Update integration tests
-3. **New API actions** → Add new E2E test scenarios
-4. **Error handling changes** → Update expected error responses
+```sql
+SELECT id, label, key_prefix, expires_at, revoked_at, created_by
+FROM artikel.api_keys
+WHERE site_id = '00000000-0000-0000-0000-000000000001';
+```
 
-**Keep tests fast:**
-- Integration tests should complete < 10 seconds
-- E2E tests should complete < 30 seconds
-- Use transactions and rollback in integration tests
+Key dianggap sah bila `revoked_at IS NULL` dan (`expires_at IS NULL` atau masih di
+masa depan). Tidak ada kolom `is_active` pada tabel ini.
 
-**Keep tests reliable:**
-- Use fixed test data (UUIDs, timestamps)
-- Clean up after each test run
-- Don't depend on external services
-- Use proper assertions with clear messages
+`created_by` menentukan penulis artikel yang dibuat lewat Automation API, dan user
+itu **wajib** punya peran aktif di site tersebut — kalau tidak, RPC menolak dengan
+`Author ... is not an active member of site ...`.
 
 ## Troubleshooting
 
-**Integration tests fail:**
+**Integration test gagal:**
 
 ```bash
-# Check database connection
-psql -h localhost -U postgres -d postgres -c "SELECT version();"
-
-# Check artikel schema exists
-psql -h localhost -U postgres -d postgres -c "\dn artikel"
-
-# Check migrations applied
-psql -h localhost -U postgres -d postgres -c "\df artikel.upsert_automation_article"
+docker exec -i supabase-db psql -U postgres -d postgres -c "\df artikel.upsert_automation_article"
 ```
-
-**E2E tests fail:**
 
 ```bash
-# Check Edge Function is running
-curl http://localhost:54321/functions/v1/artikel-cms
-
-# Check API key in database
-psql -h localhost -U postgres -d postgres -c \
-  "SELECT name, is_active FROM artikel.api_keys WHERE key_hash = encode(digest('test-key-local-123', 'sha256'), 'hex');"
-
-# Check function logs
-supabase functions logs artikel-cms
+docker exec -i supabase-db psql -U postgres -d postgres -c "\df artikel.current_article_actor"
 ```
 
-**Rate limiting issues:**
+Kalau `current_article_actor` tidak ada, migrasi `202609280001` belum diterapkan
+dan Test 7 akan gagal.
+
+**E2E test gagal:**
 
 ```bash
-# Disable rate limiting for testing
-# Comment out rate limit check in index.ts:
-# if (!checkRateLimit(apiKey)) { ... }
+curl -i -H "x-api-key: $TEST_API_KEY" "$SUPABASE_URL/functions/v1/automation-api"
 ```
 
-## Coverage Report
+- `500 {"error":"Automation API is not configured"}` → `ARTIKEL_API_KEY_PEPPER`
+  tidak di-set di container `supabase-edge-functions`. Function gagal-aman; ini
+  bukan auth bypass.
+- `401 {"error":"Invalid or inactive API key"}` → key dicabut/kedaluwarsa, site
+  nonaktif, atau `created_by` kosong.
+- `500` pada `POST` padahal `GET` berhasil → periksa apakah migrasi
+  `202609100020` versi perbaikan dan `202609280001` sudah diterapkan.
 
-| Component | Coverage | Status |
-|-----------|----------|--------|
-| Database Function | 100% | ✅ |
-| API Validation | 100% | ✅ |
-| Error Handling | 100% | ✅ |
-| Authentication | 100% | ✅ |
-| Rate Limiting | 50% | ⚠️ |
+Log function:
 
-**Gaps:**
-- Rate limiting test is optional (dependent on volume)
-- Performance tests not included (add with k6/Artillery)
-- Security tests (SQL injection, XSS) not included
+```bash
+docker logs --tail 100 supabase-edge-functions
+```
+
+## Yang Belum Tercakup
+
+- Tes rate limit (belum aktif di function yang ter-deploy)
+- Tes performa (k6/Artillery)
+- Tes keamanan khusus (SQL injection, XSS) — sanitasi HTML diuji terpisah di
+  `tests/unit/`
+- Tes otorisasi route CMS (`/api/cms/**`) — direncanakan di Fase 5 plan remediasi
 
 ---
 
-**Last Updated:** 2026-09-10  
-**Test Owner:** maskhar
+**Terakhir diperbarui:** 2026-09-28

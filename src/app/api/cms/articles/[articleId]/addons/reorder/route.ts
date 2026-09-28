@@ -3,7 +3,7 @@ import { z } from "zod";
 import { createClient } from "@/lib/supabase/server";
 
 const schema = z.object({
-  addonIds: z.array(z.string())
+  addonIds: z.array(z.string().uuid()).max(200)
 });
 
 export async function PATCH(

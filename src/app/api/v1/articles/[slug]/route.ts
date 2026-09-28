@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { authenticatePublicApiKey } from "@/lib/public-api";
+import { sanitizeHtml } from "@/lib/sanitize-html";
 
 type Addon = {
   id: string;
@@ -130,7 +131,17 @@ export async function GET(
   ]);
   const category = Array.isArray(article.categories) ? article.categories[0] : article.categories;
   return NextResponse.json(
-    { data: { ...article, category, featured_image_url: featuredImage?.signedUrl ?? null, og_image_url: ogImage?.signedUrl ?? null, addons } },
+    {
+      data: {
+        ...article,
+        // Lapis kedua: artikel lama tersimpan sebelum sanitasi tulis diterapkan.
+        content: sanitizeHtml(article.content ?? ""),
+        category,
+        featured_image_url: featuredImage?.signedUrl ?? null,
+        og_image_url: ogImage?.signedUrl ?? null,
+        addons,
+      },
+    },
     { headers: authentication.headers },
   );
 }
