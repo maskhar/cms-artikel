@@ -6,6 +6,14 @@ Catatan hidup: migrasi mana sudah diterapkan di mana. Sebelum dokumen ini ada,
 tidak ada catatan sama sekali dan satu-satunya cara mengetahui keadaan produksi
 adalah menginspeksi katalog PostgreSQL langsung.
 
+> **Ledger ini hanya soal database.** `20.20.20.173` menjalankan Supabase;
+> aplikasinya berjalan di workstation. "Terpasang di produksi" di sini berarti
+> SQL-nya ada di database itu — **tidak** berarti kode aplikasi yang
+> memanfaatkannya sudah dideploy. Dua hal itu pernah tertukar pada 28 September
+> 2026 dan menghasilkan klaim palsu selama 16 hari; lihat
+> `docs/DEPLOYMENT-CMS.md`. Status aplikasi hanya sah diverifikasi lewat
+> `https://cms.carubra.com`.
+
 ---
 
 ## ⚠️ Tidak ada tabel ledger di database

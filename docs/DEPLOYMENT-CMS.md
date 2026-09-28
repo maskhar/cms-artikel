@@ -4,18 +4,53 @@
 
 **Error:** 502 Bad Gateway pada https://cms.carubra.com/api/cms/sites
 
-**Penyebab:** Container Docker untuk aplikasi CMS artikel tidak berjalan di server production.
+**Penyebab:** Container Docker untuk aplikasi CMS artikel tidak berjalan.
 
 **Solusi:** Build dan deploy container menggunakan docker-compose.
 
 ## Status Deployment
 
-- **Server:** maskhar@20.20.20.173 (supabase-server)
-- **Lokasi:** ~/apps/cms-artikel
-- **Container:** cms-artikel
-- **Port:** 127.0.0.1:3002 -> 3000 (internal)
-- **Domain:** https://cms.carubra.com
+> ⚠️ **Baca ini sebelum deploy.** Sampai 28 September 2026 bagian ini menyebut
+> `20.20.20.173` sebagai tempat aplikasi berjalan. **Itu salah**, dan kesalahan
+> itu menyebabkan satu deploy penuh mendarat di container yang tidak melayani
+> siapa-siapa — lihat "28 September 2026 — koreksi topologi" di bawah.
+
+Aplikasi dan database berada di **dua mesin berbeda**:
+
+| | Aplikasi CMS | Database Supabase |
+|---|---|---|
+| Mesin | **Workstation lokal** (tempat repo ini berada) | `maskhar@20.20.20.173` |
+| Container | `cms-artikel` | `supabase-db` dkk |
+| Domain | `https://cms.carubra.com` | `https://supabase.carubra.com` |
+| Dibuka lewat | `cloudflared-tunnel` di mesin yang sama, via `carubra-network` | Kong → `8000/8443` |
+| Deploy | `docker compose build && docker compose up -d` **di workstation** | `docker exec -i supabase-db psql` lewat SSH |
+
+Jalur trafik yang sebenarnya:
+
+```
+cms.carubra.com → Cloudflare → cloudflared-tunnel (workstation)
+                                     ↓ carubra-network
+                               cms-artikel:3000     ← container di workstation
+                                     ↓
+                     https://supabase.carubra.com → 20.20.20.173
+```
+
+`cloudflared-tunnel` dan `cms-artikel` berbagi network `carubra-network` **di
+workstation**. Tunnel meneruskan ke container lokal, bukan ke server.
+
+Cara membuktikannya kalau ragu (jangan percaya dokumen ini begitu saja —
+dokumen inilah yang dulu keliru): hentikan container lokal, lalu panggil domain
+publiknya. Kalau jadi 502, container lokal itulah yang melayani produksi.
+
+- **Port:** `127.0.0.1:3002 -> 3000` (sama di kedua mesin — inilah yang membuat
+  probe `curl 127.0.0.1:3002` di server tampak "berhasil" padahal salah sasaran)
 - **Status:** Running & Healthy ✓
+
+### Container `cms-artikel` di `20.20.20.173`
+
+Ada, sehat, dan **tidak menerima trafik apa pun**. Sisa deploy 28 September 2026
+yang salah sasaran. Jangan dijadikan acuan status produksi; verifikasi apa pun
+di sana tidak membuktikan apa-apa tentang `cms.carubra.com`.
 
 ## Riwayat deploy keamanan
 
@@ -107,27 +142,98 @@ Diverifikasi sesudah container naik:
 - Data utuh: 4 site, 4 artikel, 0 yatim, 10 baris distribusi — persis seperti
   sebelum migrasi. Skema aplikasi lain (`utero_academy`) tidak tersentuh.
 
+### 28 September 2026 — koreksi topologi: dua deploy sebelumnya salah sasaran
+
+Deploy Fase 3+5 (`d5bc84f`) dan #280003 (`0aa89cc`) dikirim ke
+`~/apps/cms-artikel` di `20.20.20.173`, lalu diverifikasi lewat
+`curl 127.0.0.1:3002` **di server itu**. Keduanya dilaporkan "terpasang di
+produksi". Keduanya tidak.
+
+Dua hal membuat kekeliruan ini lolos:
+
+1. Bagian "Status Deployment" di dokumen ini menulis server + domain dalam satu
+   blok, sehingga terbaca seolah aplikasi berjalan di sana.
+2. **Kedua mesin memakai port yang sama**, `127.0.0.1:3002`. Probe dari server
+   menjawab 200 dari container yang benar-benar ada di server — hanya saja
+   container itu tidak menerima trafik. Verifikasi lewat localhost tidak pernah
+   bisa membedakan keduanya.
+
+Dampaknya bukan teoretis. Selama 16 hari `cms.carubra.com` tetap menjalankan
+build 12 September, dan gerbang auth yang dicatat "sudah ditutup" masih terbuka:
+
+| Path | Klaim di dokumen ini | Keadaan sebenarnya di `cms.carubra.com` |
+|---|---|---|
+| `/api-keys` | 307 → `/login` sejak 28 Sep | **200 tanpa sesi** |
+| `/api-docs` | 307 → `/login` sejak 28 Sep | **200 tanpa sesi** |
+| Header keamanan | HSTS, CSP nonce, X-Frame-Options | **tidak ada satu pun**; `X-Powered-By: Next.js` |
+
+Halaman yang menerbitkan dan merotasi API key adalah yang tak berpagar.
+
+Migrasi database **tidak** terpengaruh: keduanya memakai database yang sama di
+`20.20.20.173`, jadi #280002 dan #280003 memang benar-benar terpasang.
+
+Deploy ulang ke sasaran yang benar dilakukan hari yang sama di workstation:
+
+1. Image lama ditandai `cms-artikel-cms-artikel:rollback-2026-09-28` sebagai
+   titik pulang sebelum apa pun dibangun.
+2. `docker compose build` — container lama tetap melayani trafik selama build.
+3. Matcher diverifikasi **di dalam image baru**, bukan di file sumber:
+   `.next/server/functions-config-manifest.json` → `/_middleware` →
+   `originalSource` = `/((?!api(?:/|$)|_next/static/|_next/image/|image(?:/|$)|favicon(?:/|.ico$)).*)`.
+   Batas segmen `api(?:/|$)` inilah yang berhenti menangkap `/api-keys`.
+4. `docker compose up -d` — healthy dalam ~10 detik. `.env.production` dicek md5
+   sebelum dan sesudah (identik).
+
+Diverifikasi **lewat `https://cms.carubra.com`**, bukan localhost:
+
+- `/api-keys`, `/api-docs`, `/team`, `/sites`, `/gallery`, `/` → 307 `/login`;
+  `/login` → 200; `/api/cms/sites` dan `/api/cms/articles` tanpa sesi → 401.
+- 3 request → 3 nonce CSP berbeda; 11/11 `<script>` ber-nonce dan cocok dengan
+  header (0 tanpa nonce, 0 salah nonce) — hydration React hidup.
+- HSTS, `X-Frame-Options: DENY`, `X-Content-Type-Options: nosniff`,
+  `Referrer-Policy` terpasang; `X-Powered-By` hilang; `unsafe-eval` nol.
+
+**Aturan verifikasi sesudah ini:** status produksi hanya sah kalau diprobe lewat
+`https://cms.carubra.com`. `curl 127.0.0.1:3002` tidak membuktikan apa pun —
+port itu ada di dua mesin.
+
 ## Command Reference
 
 ### Deploy/Update Aplikasi
 
-`ash
-# SSH ke server
-ssh maskhar@20.20.20.173
+Dijalankan **di workstation**, di root repo ini. Jangan SSH — aplikasi tidak
+berjalan di `20.20.20.173`.
 
-# Masuk ke direktori aplikasi
-cd ~/apps/cms-artikel
+```bash
+# Titik pulang dulu, sebelum apa pun dibangun
+docker tag cms-artikel-cms-artikel cms-artikel-cms-artikel:rollback-$(date +%F)
 
-# Pull perubahan terbaru (jika ada)
-git pull
+# Build. Container lama tetap melayani trafik selama proses ini.
+docker compose build
 
-# Build dan restart container
-docker compose down
-docker compose up -d --build
+# Tukar. Di sinilah downtime terjadi (~10 detik).
+docker compose up -d
 
 # Lihat logs
 docker logs cms-artikel -f
-`
+```
+
+Rollback kalau ada yang salah:
+
+```bash
+docker tag cms-artikel-cms-artikel:rollback-2026-09-28 cms-artikel-cms-artikel:latest
+docker compose up -d
+```
+
+Verifikasi **wajib lewat domain publik**, bukan `127.0.0.1:3002`:
+
+```bash
+for p in /api-keys /api-docs /team /sites /gallery / /login; do
+  echo "$p -> $(curl -sS -o /dev/null -w '%{http_code}' https://cms.carubra.com$p)"
+done
+```
+
+Harap: semua 307 kecuali `/login` yang 200.
 
 ### Monitoring
 

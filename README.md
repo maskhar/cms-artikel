@@ -196,26 +196,42 @@ Duration  1.03s
 
 ### Production
 
+Aplikasi dan database ada di **dua mesin berbeda**:
+
 ```
-SSH: maskhar@20.20.20.173
-Path: ~/apps/cms-artikel
-Container: cms-artikel (port 3002 → 3000)
-Domain: https://cms.carubra.com
-Status: healthy
+Aplikasi   : workstation lokal (repo ini)   → cms-artikel:3002 → cms.carubra.com
+Database   : maskhar@20.20.20.173           → supabase-db      → supabase.carubra.com
 ```
+
+`cms.carubra.com` dilayani container `cms-artikel` **di workstation**, lewat
+`cloudflared-tunnel` yang berbagi network `carubra-network`. Server
+`20.20.20.173` hanya menjalankan Supabase.
+
+> ⚠️ Kedua mesin sama-sama punya container `cms-artikel` di `127.0.0.1:3002`.
+> Yang di server **tidak menerima trafik** — sisa deploy salah sasaran
+> 28 September 2026. Verifikasi status produksi hanya sah lewat
+> `https://cms.carubra.com`; probe localhost tidak bisa membedakan keduanya.
+> Lihat `docs/DEPLOYMENT-CMS.md`.
 
 ### Deploy Script
 
+Dijalankan **di workstation**, bukan lewat SSH:
+
 ```bash
-# Build & restart container
-ssh maskhar@20.20.20.173 "cd ~/apps/cms-artikel && \
-  docker compose up -d --build cms-artikel"
+pwsh scripts/deploy.ps1
+```
 
-# Check logs
+Skrip itu menandai image rollback, build, memeriksa matcher middleware di dalam
+image, menukar container, lalu memverifikasi gerbang auth lewat domain publik —
+dan gagal keras kalau ada yang tidak 307/200 sesuai harapan.
+
+Manual:
+
+```bash
+docker tag cms-artikel-cms-artikel cms-artikel-cms-artikel:rollback-$(date +%F)
+docker compose build
+docker compose up -d
 docker compose logs -f cms-artikel
-
-# Health check
-curl -I https://cms.carubra.com
 ```
 
 ### Database Migration
