@@ -1,8 +1,19 @@
 # Automation API - Panduan Penggunaan di Dashboard
 
-**Last updated:** 11 September 2026
+**Last updated:** 28 September 2026
 
 Panduan lengkap untuk mengelola dan menggunakan Automation API dari dashboard CMS Artikel.
+
+> ⚠️ **`POST` masih 500 di produksi saat ini.** Penyebabnya bukan dokumen ini:
+> `ARTIKEL_API_KEY_PEPPER` belum ter-set di container Edge Function, dan migrasi
+> perbaikan RPC (`202609100014` versi baru + `202609280001`) belum diterapkan ke
+> produksi. `GET` (verifikasi key) berfungsi normal. Peringatan ini dicabut setelah
+> produksi benar-benar diperbaiki.
+>
+> Dokumen ini disamakan dengan kontrak nyata pada 28 September 2026. Versi
+> sebelumnya menyebut prefix key `aut_live_`, host `supabase.maskhar.net`, form
+> "Scope: Automation", sinkronisasi `tags`, dan rate limit 120 req/60s — tak satu
+> pun dari itu ada.
 
 ---
 
@@ -24,10 +35,14 @@ Automation API memungkinkan Anda untuk **push artikel dari sistem eksternal** (W
 ### Fitur Utama
 
 - ✅ **Upsert Logic**: Create artikel baru atau update yang sudah ada dengan `external_id`
-- ✅ **Auto Category**: Buat kategori otomatis jika belum ada
-- ✅ **Tag Sync**: Sinkronisasi tags secara otomatis
-- ✅ **Status Control**: Kontrol status artikel (draft, pending, published, dll)
+- ✅ **Auto Category**: Buat kategori otomatis jika belum ada (cocok tanpa memandang kapitalisasi)
+- ✅ **Status Control**: `draft`, `review`, `scheduled`, `published`, `archived`
+- ✅ **Revisi otomatis**: setiap panggilan menambah satu baris `article_revisions`
 - ✅ **Multi-tenant**: Otomatis scope ke website yang benar berdasarkan API key
+
+**Tidak ada sinkronisasi tag.** Versi lama dokumen ini menjanjikan "Tag Sync";
+Automation API tidak pernah memproses field `tags` — nilainya diabaikan diam-diam.
+Kelola tag lewat CMS.
 
 ### Kapan Menggunakan Automation API?
 
@@ -45,41 +60,41 @@ Automation API memungkinkan Anda untuk **push artikel dari sistem eksternal** (W
 
 ## Membuat API Key
 
+> **Tidak ada pilihan scope.** CMS ini hanya punya satu jenis API key. Key yang
+> sama dipakai Public Read API (header `x-artikel-key`) dan Automation API
+> (header `x-api-key`); yang membedakan hanya header dan endpoint, bukan
+> key-nya. Versi lama dokumen ini menyuruh memilih scope "Automation" — form itu
+> tidak pernah ada.
+
 ### Step 1: Akses Menu API Keys
 
 1. Login ke dashboard CMS: `https://cms.carubra.com`
-2. Pilih website Anda dari sidebar
-3. Klik menu **"API Keys"** di sidebar
+2. Klik menu **"API keys"** di sidebar (`https://cms.carubra.com/api-keys`)
 
-### Step 2: Create New API Key
+### Step 2: Generate API key
 
-1. Klik tombol **"Create API Key"** di pojok kanan atas
-2. Isi form:
-   - **Description**: Deskripsi penggunaan (contoh: "WordPress Integration")
-   - **Scope**: Pilih **"Automation"** (bukan "Public Read")
-   - **Expires At**: (Optional) Set tanggal expired jika diperlukan
-3. Klik **"Create"**
+Isi form **Generate API key** di panel kanan:
 
-### Step 3: Copy API Key
+| Field | Wajib | Keterangan |
+|---|---|---|
+| **Website** | Ya | Menentukan tenant tujuan. Artikel yang di-push key ini selalu masuk ke website ini. |
+| **Label** | Ya | 2–80 karakter. Contoh: `WordPress Production`. |
+| **Expiry** | Tidak | Harus di masa depan bila diisi. Kosongkan untuk key tanpa kedaluwarsa. |
 
-⚠️ **PENTING:** API key hanya ditampilkan **SEKALI**!
+Klik **Generate key**.
 
-```
-Setelah create, Anda akan melihat modal:
+### Step 3: Salin API key
 
-┌────────────────────────────────────────┐
-│  API Key Created Successfully          │
-│                                        │
-│  Key: aut_live_abc123xyz...            │
-│                                        │
-│  ⚠️ Copy this key now!                 │
-│  You won't be able to see it again.   │
-│                                        │
-│  [Copy to Clipboard]  [Close]          │
-└────────────────────────────────────────┘
-```
+⚠️ **PENTING:** nilai penuh key hanya ditampilkan **SEKALI**, di panel kuning
+"Simpan key sekarang" tepat di atas daftar key. Setelah halaman di-reload, yang
+tersisa hanya `key_prefix` (15 karakter pertama) — nilai penuhnya di-hash dan
+tidak dapat diambil kembali dari database.
 
-**Copy key tersebut** dan simpan di tempat aman (password manager, environment variables).
+Bentuk key: `ak_live_` + 32 karakter base64url, misalnya
+`ak_live_ZmFrZS1jb250b2gtYnVrYW4ta2V5`.
+
+Kalau key hilang, pakai tombol **Rotasi** pada key tersebut: nilai baru terbit,
+nilai lama langsung tidak berlaku, dan record key tetap sama.
 
 ### Step 4: Simpan di Sistem Eksternal
 
@@ -87,18 +102,48 @@ Simpan API key sebagai environment variable di sistem yang akan push artikel:
 
 **WordPress (wp-config.php):**
 ```php
-define('ARTIKEL_AUTOMATION_KEY', 'aut_live_abc123xyz...');
+define('ARTIKEL_AUTOMATION_KEY', 'ak_live_xxxxxxxxxxxxxxxxxxxxxxxx');
 ```
 
 **Node.js (.env):**
 ```env
-AUTOMATION_API_KEY=aut_live_abc123xyz...
+AUTOMATION_API_KEY=ak_live_xxxxxxxxxxxxxxxxxxxxxxxx
 ```
 
 **Python (.env):**
 ```env
-AUTOMATION_API_KEY=aut_live_abc123xyz...
+AUTOMATION_API_KEY=ak_live_xxxxxxxxxxxxxxxxxxxxxxxx
 ```
+
+### Alternatif: lewat API
+
+Perlu sesi login CMS (cookie), bukan API key:
+
+```bash
+curl -X POST "https://cms.carubra.com/api/cms/api-keys" \
+  -H "Content-Type: application/json" \
+  -H "Cookie: $CMS_SESSION_COOKIE" \
+  -d '{"siteId":"<uuid website>","label":"WordPress Production"}'
+```
+
+Respons `201` memuat `data.key` — nilai mentah, hanya dikirim sekali.
+
+### Jangan buat API key lewat SQL
+
+`artikel.api_keys.secret_hash` berisi SHA-256 dari
+`"<key mentah>:<ARTIKEL_API_KEY_PEPPER>"`. Pepper adalah rahasia runtime yang
+tidak ada di repo, jadi key yang disisipkan langsung lewat `INSERT` akan selalu
+ditolak `401`. Tabel ini juga tidak punya kolom `name`, `key_hash`, `user_id`,
+maupun `is_active` — kolom yang nyata: `label`, `key_prefix`, `secret_hash`,
+`expires_at`, `revoked_at`, `created_by`.
+
+### `created_by` menentukan penulis artikel
+
+Automation API memakai `api_keys.created_by` sebagai `author_id` artikel yang
+dibuat. User itu **wajib** punya peran aktif di website tujuan
+(`artikel.user_roles`, `is_active = true`). Kalau tidak, RPC menolak dengan
+`Author ... is not an active member of site ...`. Jadi jangan membuat key dengan
+akun yang perannya kemudian dicabut.
 
 ---
 
@@ -108,19 +153,41 @@ AUTOMATION_API_KEY=aut_live_abc123xyz...
 
 Sayangnya, saat ini dashboard belum memiliki built-in API tester. Gunakan salah satu metode di bawah:
 
-### Test dengan cURL (Recommended)
+### Langkah 0: verifikasi key dulu dengan `GET`
+
+`GET` tidak menulis apa pun dan langsung memberi tahu key ini milik site mana:
+
+```bash
+curl -i -H "x-api-key: $AUTOMATION_API_KEY" \
+  "https://supabase.carubra.com/functions/v1/automation-api"
+```
+
+Respons `200`:
+
+```json
+{
+  "success": true,
+  "site": { "id": "…uuid…", "name": "Nama Website", "domain": "contoh.test" },
+  "message": "API key is valid"
+}
+```
+
+Kalau ini saja gagal, `POST` tidak akan berhasil. Lihat Troubleshooting.
+
+### Test dengan cURL
 
 **Linux/Mac/WSL:**
 ```bash
-curl -X POST "https://supabase.maskhar.net/functions/v1/automation-api" \
-  -H "x-api-key: aut_live_abc123xyz..." \
+curl -X POST "https://supabase.carubra.com/functions/v1/automation-api" \
+  -H "x-api-key: $AUTOMATION_API_KEY" \
   -H "Content-Type: application/json" \
   -d '{
     "external_id": "test-001",
     "title": "Test Artikel dari cURL",
+    "slug": "test-artikel-dari-curl",
     "content": "<p>Ini adalah konten test.</p>",
     "excerpt": "Test excerpt",
-    "tags": ["test", "automation"],
+    "category_name": "Teknologi",
     "status": "draft"
   }'
 ```
@@ -128,130 +195,119 @@ curl -X POST "https://supabase.maskhar.net/functions/v1/automation-api" \
 **Windows PowerShell:**
 ```powershell
 $headers = @{
-    "x-api-key" = "aut_live_abc123xyz..."
+    "x-api-key" = $env:AUTOMATION_API_KEY
     "Content-Type" = "application/json"
 }
 
 $body = @{
-    external_id = "test-001"
-    title = "Test Artikel dari PowerShell"
-    content = "<p>Ini adalah konten test.</p>"
-    excerpt = "Test excerpt"
-    tags = @("test", "automation")
-    status = "draft"
+    external_id   = "test-001"
+    title         = "Test Artikel dari PowerShell"
+    slug          = "test-artikel-dari-powershell"
+    content       = "<p>Ini adalah konten test.</p>"
+    excerpt       = "Test excerpt"
+    category_name = "Teknologi"
+    status        = "draft"
 } | ConvertTo-Json
 
 Invoke-RestMethod `
-    -Uri "https://supabase.maskhar.net/functions/v1/automation-api" `
+    -Uri "https://supabase.carubra.com/functions/v1/automation-api" `
     -Method Post `
     -Headers $headers `
     -Body $body
 ```
 
-### Test dengan Postman
+### Field yang diterima
 
-1. **Create New Request**
-   - Method: `POST`
-   - URL: `https://supabase.maskhar.net/functions/v1/automation-api`
+| Field | Wajib | Catatan |
+|---|---|---|
+| `external_id` | Ya | Kunci upsert, unik per site |
+| `title` | Ya | |
+| `slug` | Ya | Tidak dibangkitkan otomatis; unik per site |
+| `content` | Ya | HTML |
+| `category_name` | Ya | Dibuat otomatis bila belum ada |
+| `excerpt` | Tidak | |
+| `status` | Tidak | Default `draft` |
+| `published_at` | Tidak | Diisi otomatis `now()` bila `status='published'` |
+| `featured_image` | Tidak | Path storage, bukan URL eksternal |
+| `meta_description` | Tidak | |
 
-2. **Headers Tab**
-   - `x-api-key`: `aut_live_abc123xyz...`
-   - `Content-Type`: `application/json`
+Field lain diabaikan diam-diam — termasuk `tags`, `featured_image_url`,
+`category_id`, `seo_title`, `canonical_url`, `robots`, dan `og_image_url`.
+Mengirimnya tidak error, tapi juga tidak tersimpan.
 
-3. **Body Tab** (raw JSON)
-   ```json
-   {
-     "external_id": "postman-test-001",
-     "title": "Test Artikel dari Postman",
-     "content": "<p>Ini adalah konten test dari Postman.</p>",
-     "excerpt": "Test excerpt",
-     "tags": ["test", "automation"],
-     "status": "draft"
-   }
-   ```
+### Respons yang benar
 
-4. **Send Request**
+**Success (200)** — `data` adalah **array**, karena RPC memakai `RETURNS TABLE`:
 
-### Expected Response
-
-**Success (200):**
 ```json
 {
   "success": true,
-  "data": {
-    "article_id": "550e8400-e29b-41d4-a716-446655440000",
-    "operation": "insert",
-    "message": "Article created successfully"
-  }
+  "site": { "id": "…uuid…", "name": "Nama Website" },
+  "data": [
+    {
+      "article_id": "550e8400-e29b-41d4-a716-446655440000",
+      "revision_id": "…uuid…",
+      "created_new": true,
+      "category_id": "…uuid…"
+    }
+  ]
 }
 ```
 
-**Error (401 - Invalid API Key):**
+Baca `data[0].article_id`, bukan `data.article_id`. `created_new` membedakan
+insert dari update.
+
+**Error (401):**
 ```json
-{
-  "error": "Invalid or inactive API key"
-}
+{ "error": "Invalid or inactive API key" }
 ```
 
-**Error (400 - Missing Fields):**
+**Error (400):**
 ```json
-{
-  "error": "Missing required fields",
-  "required": ["external_id", "title", "content"]
-}
+{ "error": "Missing required fields: slug, category_name" }
 ```
+
+Semua error berbentuk `{"error": "<pesan>"}` — datar, tanpa objek bersarang dan
+tanpa kode error mesin.
 
 ### Verifikasi di Dashboard
 
 Setelah test berhasil:
 
 1. Buka menu **"Articles"** di dashboard
-2. Filter by status **"Draft"** (karena kita push dengan status draft)
+2. Filter status sesuai yang dikirim
 3. Cari artikel dengan title yang Anda kirim
-4. Klik artikel untuk melihat detail
 
-✅ Artikel harus muncul dengan:
-- Title sesuai yang dikirim
-- Content sesuai yang dikirim
-- Tags yang sudah di-assign
-- Status = Draft
-- Author = User pertama dengan role writer/editor
+✅ Artikel harus muncul dengan title, content, kategori, dan status sesuai
+payload, serta **Author = user yang membuat API key** (`api_keys.created_by`).
 
 ---
 
 ## Monitoring & Audit
 
-### Menu Audit Logs
+### Yang tersedia di halaman API Keys
 
-Dashboard memiliki **Audit Logs** untuk monitoring aktivitas API:
+Setiap key pada daftar menampilkan: **Label**, **Website**, **Prefix**
+(`key_prefix`, 15 karakter pertama), **Status** (Aktif / Revoked), **Expiry**,
+dan **Terakhir dipakai** (`last_used_at`).
 
-1. Klik menu **"Audit Logs"** di sidebar
-2. Filter by **Action Type**: "api_request"
-3. Filter by **Resource Type**: "article"
+Aksi per key: **Rotasi** (terbitkan nilai baru, nilai lama mati) dan **Cabut**
+(`revoked_at` diisi, key langsung ditolak).
 
-Anda akan melihat:
-- Timestamp request
-- User/API key yang digunakan
-- Action (INSERT, UPDATE)
-- Resource (article ID)
-- IP address
-- Details (request payload summary)
+Tidak ada penghitung "Total Requests" maupun indikator "Rate Limit Status" di
+halaman ini — versi lama dokumen ini menjanjikan keduanya; tidak pernah ada.
 
-### Metrics di API Keys Page
+### Yang belum tersedia
 
-Di halaman **API Keys**, setiap key menampilkan:
-- **Status**: Active/Inactive/Expired
-- **Last Used**: Kapan terakhir digunakan
-- **Total Requests**: Jumlah request yang sudah dilakukan
-- **Rate Limit Status**: Usage saat ini
+- Tidak ada log per-request untuk Automation API. `last_used_at` adalah satu-satunya
+  jejak pemakaian key.
+- Tidak ada notifikasi email untuk key mendekati kedaluwarsa atau gagal autentikasi.
 
-### Alert & Notification
+Untuk investigasi yang lebih dalam, log Edge Function ada di server:
 
-⚠️ **Coming Soon**: Email notification untuk:
-- API key mendekati expired
-- Rate limit reached
-- Failed authentication attempts
-- Suspicious activity
+```bash
+docker logs --tail 200 supabase-edge-functions
+```
 
 ---
 
@@ -273,19 +329,17 @@ Beri nama API key yang jelas:
 
 ### 2. Environment Separation
 
-Gunakan API key terpisah untuk setiap environment:
-
-```
-Development:   aut_test_dev_abc123...
-Staging:       aut_test_staging_xyz456...
-Production:    aut_live_prod_qwe789...
-```
+Semua key berawalan `ak_live_` — tidak ada varian `ak_test_`. Yang membedakan
+environment adalah **site tujuan** dan **label**, bukan bentuk key-nya.
 
 **Cara membuat:**
-1. Create 3 API keys berbeda di dashboard
-2. Beri description yang jelas (contoh: "WordPress - Production")
-3. Set expiration untuk test keys (contoh: 90 hari)
-4. Jangan set expiration untuk production key
+1. Buat site khusus tes bila perlu, lalu terbitkan key terpisah per environment
+2. Beri label yang jelas (contoh: `WordPress - Production`, `WordPress - Staging`)
+3. Set expiry untuk key tes (contoh: 90 hari)
+4. Biarkan expiry kosong untuk key produksi, tapi rotasi berkala
+
+⚠️ Karena key tes tetap menulis artikel sungguhan ke site-nya, **jangan** pakai key
+produksi untuk uji coba.
 
 ### 3. Security
 
@@ -322,24 +376,18 @@ function push_to_artikel_cms($post_id) {
         
         $status_code = wp_remote_retrieve_response_code($response);
         $body = json_decode(wp_remote_retrieve_body($response), true);
-        
-        if ($status_code === 429) {
-            // Rate limited - wait and retry
-            error_log('Rate limited. Retry after: ' . $response['headers']['retry-after']);
-            // Implement retry logic
-            return false;
-        }
-        
+
         if ($status_code !== 200) {
-            error_log('API Error: ' . $body['error']);
+            // Semua error berbentuk {"error": "<pesan>"}
+            error_log('API Error: ' . ($body['error'] ?? 'unknown'));
             return false;
         }
-        
-        // Success
+
+        // data adalah array (RPC RETURNS TABLE)
         update_post_meta($post_id, '_artikel_synced', true);
-        update_post_meta($post_id, '_artikel_id', $body['data']['article_id']);
+        update_post_meta($post_id, '_artikel_id', $body['data'][0]['article_id']);
         return true;
-        
+
     } catch (Exception $e) {
         error_log('Exception: ' . $e->getMessage());
         return false;
@@ -349,20 +397,20 @@ function push_to_artikel_cms($post_id) {
 
 ### 5. Rate Limiting
 
-Default rate limit: **120 requests per 60 seconds**
+**Automation API yang ter-deploy belum punya rate limit.** Tidak ada header
+`X-RateLimit-*`, tidak ada respons `429`, dan tidak ada `Retry-After`. Versi lama
+dokumen ini menyebut "120 requests per 60 seconds" — angka itu milik Public Read
+API (`x-artikel-key`), bukan Automation API.
 
-**Tips:**
-- Batch operations jika memungkinkan
-- Implement exponential backoff untuk retry
-- Check header `X-RateLimit-Remaining` sebelum request
-- Respect `Retry-After` header saat 429
+Perlakukan ini sebagai **kewajiban Anda, bukan izin**: tanpa rem di sisi server,
+klien yang mengulang tanpa jeda bisa membebani database. Batasi sendiri.
 
-**Example Batch Strategy:**
+**Contoh strategi batch:**
 ```php
-// Instead of syncing on every save:
+// Jangan sync di setiap save:
 add_action('save_post', 'queue_article_for_sync');
 
-// Batch sync every 5 minutes via cron:
+// Batch sync tiap 5 menit lewat cron:
 add_action('artikel_batch_sync', 'process_sync_queue');
 if (!wp_next_scheduled('artikel_batch_sync')) {
     wp_schedule_event(time(), 'every_5_minutes', 'artikel_batch_sync');
@@ -371,136 +419,114 @@ if (!wp_next_scheduled('artikel_batch_sync')) {
 
 ### 6. Data Validation
 
-Validate data sebelum push ke API:
+Validasi sebelum push — API menolak payload tidak lengkap dengan `400`, dan
+`slug` bentrok dengan `500`:
 
 ```php
-function validate_artikel_data($post) {
+function validate_artikel_data($post, $slug, $category_name) {
     $errors = [];
-    
-    // Required fields
-    if (empty($post->post_title)) {
-        $errors[] = 'Title is required';
-    }
-    
-    if (empty($post->post_content)) {
-        $errors[] = 'Content is required';
-    }
-    
-    // Length validation
+
+    // Field wajib API: external_id, title, slug, content, category_name
+    if (empty($post->post_title))   { $errors[] = 'Title is required'; }
+    if (empty($post->post_content)) { $errors[] = 'Content is required'; }
+    if (empty($slug))               { $errors[] = 'Slug is required'; }
+    if (empty($category_name))      { $errors[] = 'Category name is required'; }
+
     if (strlen($post->post_title) > 255) {
         $errors[] = 'Title too long (max 255 chars)';
     }
-    
-    // HTML validation
-    if (!preg_match('/<p>/', $post->post_content)) {
-        // Wrap in paragraph if needed
-        $post->post_content = '<p>' . $post->post_content . '</p>';
-    }
-    
-    return [
-        'valid' => empty($errors),
-        'errors' => $errors,
-        'data' => $post
-    ];
+
+    return ['valid' => empty($errors), 'errors' => $errors];
 }
 ```
+
+Slug **tidak** dibangkitkan otomatis oleh API. Bangkitkan sendiri, pastikan unik
+per site, dan pakai slug yang sama saat update artikel yang sama.
 
 ---
 
 ## Troubleshooting
 
-### Error: Invalid or inactive API key
+Mulailah selalu dari `GET` — memisahkan masalah autentikasi dari masalah payload:
+
+```bash
+curl -i -H "x-api-key: $AUTOMATION_API_KEY" \
+  "https://supabase.carubra.com/functions/v1/automation-api"
+```
+
+### `500 {"error":"Automation API is not configured"}`
+
+Variabel `ARTIKEL_API_KEY_PEPPER` tidak ter-set di container
+`supabase-edge-functions`. Function sengaja gagal-aman: tanpa pepper ia tidak bisa
+memverifikasi key, jadi menolak semua request. **Ini bukan auth bypass.**
+
+Perbaikan ada di sisi server, bukan di klien. Lihat `docs/API-DEPLOYMENT.md`
+bagian variabel lingkungan Edge Function.
+
+### `401 {"error":"Invalid or inactive API key"}`
 
 **Penyebab:**
-- API key salah
-- API key sudah expired
-- API key sudah di-revoke
-- Menggunakan header yang salah
+- Key salah ketik, atau yang dipakai `key_prefix` (potongan 15 karakter di UI),
+  bukan nilai penuh
+- Key sudah dicabut (`revoked_at` terisi) atau kedaluwarsa
+- Site milik key itu dinonaktifkan
+- Header salah: Automation API memakai `x-api-key`. Header `x-artikel-key` milik
+  Public Read API (`/api/v1/articles`) dan tidak berlaku di sini
 
-**Solusi:**
-1. Cek di dashboard: Menu **API Keys** → Pastikan status = Active
-2. Pastikan menggunakan header `x-api-key` (bukan `x-artikel-key`)
-3. Copy API key lagi dari dashboard (atau generate new key)
-4. Cek expiration date
+**Solusi:** cek status key di halaman **API keys**, lalu **Rotasi** untuk
+mendapat nilai baru. Nilai lama tidak bisa dipulihkan.
 
-### Error: Missing required fields
+### `400 {"error":"Missing required fields: ..."}`
 
-**Penyebab:**
-- Request body tidak lengkap
-- Field name salah
-- JSON format tidak valid
+Pesan error menyebutkan persis field mana yang kurang. Yang wajib:
+`external_id`, `title`, `slug`, `content`, `category_name`. Nama field
+case-sensitive. Yang paling sering terlewat: **`slug`** dan **`category_name`** —
+keduanya tidak dibangkitkan otomatis.
 
-**Solusi:**
-1. Pastikan ada `external_id`, `title`, dan `content` di request body
-2. Cek spelling field names (case-sensitive)
-3. Validate JSON format sebelum send
+### `500` pada `POST` padahal `GET` berhasil
+
+Autentikasi beres, masalahnya di database. Dua kemungkinan utama:
+
+1. **Migrasi belum diterapkan.** RPC `artikel.upsert_automation_article` versi
+   lama merujuk tabel `artikel.site_users` yang tidak pernah ada. Perlu
+   `202609100014` versi perbaikan **dan** `202609280001_automation_article_actor.sql`.
+2. **Slug bentrok.** `articles(site_id, slug)` unik. Pakai slug lain, atau
+   perbarui artikel yang sudah ada lewat `external_id` yang sama.
+
+Cek log untuk membedakan:
+
+```bash
+docker logs --tail 100 supabase-edge-functions
+```
+
+### `Author ... is not an active member of site ...`
+
+User pada `api_keys.created_by` tidak punya peran aktif di site tujuan. Aktifkan
+kembali perannya lewat menu **Team**, atau terbitkan ulang key dengan akun yang
+masih berperan di site tersebut.
 
 ### Artikel tidak muncul di dashboard
 
-**Penyebab:**
-- Artikel ter-create tapi di site yang berbeda
-- Status artikel = archived
-- RLS policy blocking
+1. Ambil `data[0].article_id` dari respons — kalau ada, artikel benar-benar tersimpan
+2. Pastikan Anda melihat website yang sama dengan pemilik API key (`GET` menyebut namanya)
+3. Periksa semua status, bukan hanya Draft
 
-**Solusi:**
-1. Cek di **Audit Logs** apakah request berhasil
-2. Cek response API: ambil `article_id`
-3. Search artikel by ID di database
-4. Pastikan site_id sesuai dengan API key yang digunakan
-5. Check artikel di semua status (Draft, Pending, Published, Archived)
+### Kategori tidak otomatis dibuat
 
-### Rate Limit Exceeded (429)
+Kategori dibuat dari `category_name` dan dicocokkan tanpa memandang kapitalisasi.
+`category_id` diabaikan — mengirimnya tidak akan memilih kategori mana pun.
 
-**Penyebab:**
-- Terlalu banyak request dalam waktu singkat
-- Default limit: 120 req/60s
+### Tags tidak muncul
 
-**Solusi:**
-1. Implement retry dengan exponential backoff
-2. Batch operations jika memungkinkan
-3. Check header `Retry-After` untuk tau kapan bisa retry
-4. Contact admin untuk increase rate limit jika diperlukan
-
-### Category tidak otomatis dibuat
-
-**Penyebab:**
-- Menggunakan `category_id` yang tidak valid
-- Tidak menggunakan `category_name`
-
-**Solusi:**
-- Gunakan `category_name` untuk auto-create
-- Atau pastikan `category_id` yang dikirim valid (UUID yang ada di database)
-
-### Tags tidak sync
-
-**Penyebab:**
-- Format tags tidak valid
-- Tags tidak di-send sebagai array
-
-**Solusi:**
-```json
-// ✅ Correct
-{
-  "tags": ["tech", "news", "web"]
-}
-
-// ❌ Wrong
-{
-  "tags": "tech, news, web"
-}
-```
+Tidak akan muncul. Automation API tidak memproses `tags` sama sekali. Kelola tag
+lewat CMS.
 
 ### Featured image tidak muncul
 
-**Penyebab:**
-- `featured_image_url` tidak valid
-- URL tidak accessible dari server
-
-**Solusi:**
-1. Pastikan URL publicly accessible
-2. Gunakan HTTPS
-3. Test URL di browser dulu
-4. Format supported: jpg, png, webp, gif
+`featured_image` diisi **path storage** (contoh:
+`sites/<slug-site>/articles/cover.jpg`), bukan URL eksternal. Field
+`featured_image_url` diabaikan. Unggah gambarnya lewat CMS lebih dulu, lalu pakai
+path-nya.
 
 ---
 
@@ -516,10 +542,9 @@ function validate_artikel_data($post) {
 
 ### Quick Links
 - Dashboard: https://cms.carubra.com
-- API Endpoint: https://supabase.maskhar.net/functions/v1/automation-api
+- API Endpoint: https://supabase.carubra.com/functions/v1/automation-api
 - API Keys: https://cms.carubra.com/api-keys
-- Audit Logs: https://cms.carubra.com/audit
 
 ---
 
-**Last updated:** 11 September 2026
+**Last updated:** 28 September 2026

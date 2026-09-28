@@ -4,7 +4,14 @@ Dokumen ini membagi dokumentasi menjadi dua kelompok: dokumen aktif untuk penggu
 
 ## ⚠️ Status Automation API
 
-`POST /functions/v1/automation-api` saat ini mengembalikan **500**. Penyebabnya bug di fungsi database `artikel.upsert_automation_article` (merujuk tabel `artikel.site_users` yang tidak pernah dibuat, serta kolom `featured_image`/`meta_keywords` yang tidak ada). Kontrak request sudah benar dan tidak akan berubah setelah perbaikan; `GET` pada endpoint yang sama berfungsi normal. Public Read API `/api/v1/articles` tidak terdampak. Detail di [`API.md`](API.md).
+`POST /functions/v1/automation-api` saat ini masih mengembalikan **500**. Dua penyebab, keduanya di produksi — bukan di dokumen:
+
+1. `ARTIKEL_API_KEY_PEPPER` belum ter-set di container `functions` Supabase, jadi function gagal-aman: `500 {"error":"Automation API is not configured"}`.
+2. RPC `artikel.upsert_automation_article` di produksi masih versi lama (merujuk tabel `artikel.site_users` yang tidak pernah dibuat, serta kolom `featured_image`/`meta_keywords` yang tidak ada).
+
+Perbaikan untuk (2) sudah ada di file migrasi (`202609100014` versi baru + `202609280001_automation_article_actor.sql`) tetapi **belum diterapkan ke produksi**. Langkah penerapan keduanya ada di [`API-DEPLOYMENT.md`](API-DEPLOYMENT.md).
+
+Kontrak request sudah benar dan tidak akan berubah setelah perbaikan; `GET` pada endpoint yang sama berfungsi normal. Public Read API `/api/v1/articles` tidak terdampak. Detail di [`API.md`](API.md).
 
 ## Sumber Kebenaran
 
@@ -22,9 +29,9 @@ Jika dokumen lain berbeda dengan `API.md`, ikuti `API.md` dan update dokumen lam
 
 Endpoint dan header benar, tetapi sebagian field request masih salah. Verifikasi terhadap `API.md` sebelum dipakai:
 
-- [`AUTOMATION-API-USAGE.md`](AUTOMATION-API-USAGE.md) — prefix key salah (`aut_live_`; yang benar `ak_live_`), memuat field `tags` yang tidak diproses, daftar field wajib kurang lengkap, dan rate limit yang dijelaskan belum ada di produksi.
-- [`API-DEPLOYMENT.md`](API-DEPLOYMENT.md) — prefix key salah (`art_live_`), beberapa field request tidak diterima API, kode error tidak sesuai implementasi, dan langkah deploy Edge Function tidak menyebut `ARTIKEL_API_KEY_PEPPER`.
 - [`API-INTEGRATION.md`](API-INTEGRATION.md) dan [`DEPLOYMENT-TENANT-API.md`](DEPLOYMENT-TENANT-API.md) — keliru menyatakan `page` dan `limit` wajib; keduanya opsional (default `page=1`, `limit=10`).
+
+`AUTOMATION-API-USAGE.md` dan `API-DEPLOYMENT.md` sudah disamakan dengan kontrak nyata pada 28 September 2026 dan tidak lagi masuk daftar ini.
 
 ### Contoh client
 
@@ -66,7 +73,7 @@ Sebelum perubahan infrastructure, inspeksi konfigurasi Docker Compose dan pertah
 ## Skrip Operasional
 
 - [`../scripts/deploy.ps1`](../scripts/deploy.ps1) — sinkronisasi dan deploy container CMS.
-- [`../scripts/test-edge-function.ps1`](../scripts/test-edge-function.ps1) — smoke test Edge Function Automation API.
+- [`../scripts/test-edge-function.ps1`](../scripts/test-edge-function.ps1) — smoke test Edge Function Automation API. Butuh `SUPABASE_URL` dan `TEST_API_KEY` di environment. Default hanya `GET` (verifikasi key, tidak menulis apa pun); tambahkan `-Post` untuk menguji penulisan artikel — jangan dijalankan terhadap produksi.
 
 ## SQL Manual
 
