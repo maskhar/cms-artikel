@@ -32,8 +32,8 @@ Marker lebih jujur.
 
 ## Status produksi (`20.20.20.173`, schema `artikel`)
 
-Semua 27 migrasi di `supabase/migrations/` **sudah diterapkan**. Diverifikasi
-28 September 2026 lewat query marker read-only.
+Migrasi #01–#27 **sudah diterapkan** di produksi; #28 baru ada di repo dan
+**belum** diterapkan. Diverifikasi 28 September 2026 lewat query marker read-only.
 
 | # | Migrasi | Marker pembuktian | Status |
 |---|---|---|---|
@@ -64,6 +64,7 @@ Semua 27 migrasi di `supabase/migrations/` **sudah diterapkan**. Diverifikasi
 | 25 | `202609130001_sync_global_media_library.sql` | fungsi `is_media_member` | ✅ |
 | 26 | `202609190001_security_hardening.sql` | `has_site_role_for`, MIME allowlist non-null, policy `members read site media assets` | ✅ |
 | 27 | `202609280001_automation_article_actor.sql` | fungsi `current_article_actor`; `validate_article_write` memanggilnya; RPC memanggil `set_config('artikel.automation_actor', …)` | ✅ |
+| 28 | `202609280002_preserve_galleries_on_site_delete.sql` | `galleries.site_id` nullable **dan** `galleries_site_id_fkey`/`media_assets_site_id_fkey` = `set null`; `delete_site` tidak lagi memuat `delete from artikel.gallery_items` | ⏳ belum di produksi |
 
 Query marker lengkap yang dipakai ada di bagian [Cara verifikasi ulang](#cara-verifikasi-ulang).
 
@@ -114,7 +115,11 @@ secara manual, **urutan salah = regresi diam-diam**:
 | Objek | Ditulis oleh | Pemenang yang benar |
 |---|---|---|
 | `artikel.audit_logs_site_id_fkey` | #13 → #14 → #190001 | **#190001** (`on delete set null deferrable`) — #14 memasang `cascade` yang menghapus jejak audit |
-| `artikel.delete_site` | #15 → #16 → #17 → #18 → #190001 | **#190001** (2 argumen + guard role) |
+| `artikel.delete_site` | #15 → #16 → #17 → #18 → #190001 → #280001 → #280002 | **#280002** (guard `actor_id` + audit dipertahankan verbatim, `delete from gallery_items` dicabut) |
+| `artikel.galleries_site_id_fkey` | #12 (`cascade`) → #18 (`set null`, tak pernah kena produksi) → #280002 | **#280002** (`set null`, kolom nullable) |
+| `artikel.media_assets_site_id_fkey` | #12 (`cascade`) → #18 (`set null`, tak pernah kena produksi) → #280002 | **#280002** (`set null`) — #110019/#130001 melonggarkan kolomnya tapi **tidak** FK-nya |
+| Policy `members read site media assets` | #190001 → #280002 | **#280002** (cabang `site_id is null` → `is_media_member()`) |
+| Policy `galleries` / `gallery_items` | #12 → #280002 | **#280002** (cabang yatim untuk SELECT; INSERT justru diperketat `site_id is not null`) |
 | `artikel.validate_article_write` | #05 → #07 → #190001 → #280001 | **#280001** (dukungan aktor otomasi) |
 | `artikel.has_site_role_for` | #190001 → #280001 | **#280001** |
 | Policy `media_assets` | #12 → #110019 → #130001 → #190001 | **#190001** (ber-scope per site) |
@@ -159,13 +164,32 @@ Dua cacat ditemukan dan diperbaiki karena verifikasi ini:
 ### Sisa divergensi produksi vs database bersih
 
 Setelah kedua perbaikan, objek milik CMS artikel identik **kecuali dua hal**.
-Keduanya sudah ada sebelum sesi ini, **belum diubah di produksi**, dan menunggu
-konfirmasi eksplisit karena menyentuh skema produksi:
+Keduanya sudah ada sebelum sesi ini:
 
 | Objek | Produksi | Hasil `db reset` | Dampak |
 |---|---|---|---|
-| `artikel.galleries.site_id` | `NOT NULL`, FK `on delete cascade` | nullable, FK `on delete set null` | `202609100018` baris 5 dan 9–10 tampaknya tidak pernah mengenai `galleries` di produksi (`media_assets` pada baris 6 mengenai). Akibatnya menghapus site **ikut menghapus** galerinya di produksi, padahal komentar migrasi menyatakan niat sebaliknya ("Keeps galleries and media_assets"). **0 baris `galleries` di produksi**, jadi belum ada data yang terdampak. |
-| Policy `editors delete media assets` | versi `202609100012` (tanpa guard `site_id is not null`) | versi `202609110019` (dengan guard) | Perbedaan defensif saja: `has_site_role(null, …)` tidak mengembalikan true, jadi media global tetap hanya bisa dihapus pembuatnya di kedua versi. Versi baru menyatakannya eksplisit. |
+| FK `galleries.site_id` & `media_assets.site_id` | `NOT NULL`/`cascade` dan `cascade` | nullable + `on delete set null` | **Diselesaikan #280002, menunggu apply ke produksi.** Baris 5–14 `202609100018` ternyata tidak pernah mengenai produksi **sama sekali** — bukan hanya bagian `galleries`-nya seperti yang tercatat sebelumnya. `media_assets.site_id` memang nullable, tapi lewat #110019/#130001, dan keduanya tidak menyentuh FK; hasilnya kolom nullable ber-FK cascade — skema seolah mengizinkan aset global padahal penghapusan site memusnahkannya lebih dulu. Saat dicatat: `galleries`/`gallery_items` 0 baris, `media_assets` 93 baris (2 sudah null), jadi `drop not null` tidak menyentuh data. |
+| Policy `editors delete media assets` | versi `202609100012` (tanpa guard `site_id is not null`) | versi `202609110019` (dengan guard) | Perbedaan defensif saja: `has_site_role(null, …)` tidak mengembalikan true, jadi media global tetap hanya bisa dihapus pembuatnya di kedua versi. Versi baru menyatakannya eksplisit. **Sengaja dibiarkan.** |
+
+#### Yang dibuktikan uji perilaku #280002 (database lokal, `begin … rollback`)
+
+Migrasi ini tidak diverifikasi dari membaca DDL saja. Yang dijalankan sungguhan:
+
+- Setelah `delete_site`: site hilang; galeri, `gallery_items`, dan media **selamat** dengan `site_id` null; baris audit tercatat.
+- Tabel izin `delete_site` tetap utuh: writer site itu, admin site **lain**, dan
+  `actor_id` null ditolak `42501`; admin site itu berhasil. Grant hanya
+  `service_role` — `anon`/`authenticated` `false`.
+- **Cacat yang baru ketahuan lewat uji ini, bukan dari membaca policy:** dengan
+  perbaikan galeri saja, penonton melihat `galeri=1 item=1 media=0` — galerinya
+  selamat tapi render **kosong**, karena `members read site media assets` tidak
+  punya cabang `site_id is null`. Policy itu ikut diperbaiki di #280002.
+- Kontrol regresi CRITICAL #2: editor site B melihat `0` untuk media, galeri,
+  dan item milik site C yang masih aktif. Yang dilonggarkan hanya baris yatim.
+
+Satu perilaku **sengaja tidak diubah**: `user_roles_site_id_fkey` CASCADE, jadi
+menghapus site menghapus role orang di site itu; kalau itu satu-satunya site-nya
+ia berhenti jadi anggota CMS dan tidak lagi melihat aset yatim, termasuk yang
+dibuatnya. Itu benar — tanpa role aktif memang tidak ada hak baca.
 
 Tujuh function terbaca "berbeda" pada perbandingan hash `prosrc`. **Bukan
 perbedaan perilaku**: setelah normalisasi whitespace, seluruh body identik
@@ -205,12 +229,21 @@ union all select '190001_has_site_role_for', (exists(select 1 from pg_proc where
 union all select '190001_mime_allowlist', (select (allowed_mime_types is not null)::text from storage.buckets where id='artikel-media')
 union all select '190001_media_ber_scope', (exists(select 1 from pg_policies where tablename='media_assets' and policyname='members read site media assets'))::text
 union all select '280001_current_article_actor', (exists(select 1 from pg_proc where pronamespace='artikel'::regnamespace and proname='current_article_actor'))::text
-union all select '280001_trigger_pakai_actor', (select (prosrc like '%current_article_actor%')::text from pg_proc where pronamespace='artikel'::regnamespace and proname='validate_article_write');
+union all select '280001_trigger_pakai_actor', (select (prosrc like '%current_article_actor%')::text from pg_proc where pronamespace='artikel'::regnamespace and proname='validate_article_write')
+union all select '280002_galleries_nullable', (select (is_nullable='YES')::text from information_schema.columns where table_schema='artikel' and table_name='galleries' and column_name='site_id')
+union all select '280002_fk_set_null', (select (count(*) = 2)::text from pg_constraint where conname in ('galleries_site_id_fkey','media_assets_site_id_fkey') and confdeltype = 'n')
+union all select '280002_delete_site_sisakan_item', (select (prosrc !~* 'delete\s+from\s+artikel\.gallery_items')::text from pg_proc where pronamespace='artikel'::regnamespace and proname='delete_site')
+union all select '280002_media_cabang_yatim', (select (qual like '%is_media_member%')::text from pg_policies where schemaname='artikel' and tablename='media_assets' and policyname='members read site media assets');
 SQL
 ```
 
 Semua baris harus `true`, kecuali `schema_migrations_ada` (`false`) dan
 `0018_delete_site_nargs` (`2`).
+
+⚠️ Marker `280002_delete_site_sisakan_item` sengaja memakai regex, bukan
+`prosrc like '%gallery_items%'`: frasa itu masih muncul di **komentar** body
+fungsi yang menjelaskan mengapa penghapusannya dicabut, jadi `like` polos
+melaporkan gagal padahal benar.
 
 ---
 
@@ -219,7 +252,7 @@ Semua baris harus `true`, kecuali `schema_migrations_ada` (`false`) dan
 1. **Tambah baris ke tabel status di atas setiap kali migrasi baru dibuat**,
    lengkap dengan marker yang membuktikannya — bukan sekadar nama file.
 2. **Jangan pakai ulang nomor yang sudah terpakai.** Nomor tertinggi sekarang
-   `202609280001`.
+   `202609280002`.
 3. **Jangan menamai ulang migrasi yang sudah diterapkan di produksi** kecuali
    dicatat di bagian perubahan penomoran, seperti yang dilakukan 28 September 2026.
 4. Kalau migrasi menyentuh objek yang sudah ada di tabel "saling menimpa",
