@@ -1,16 +1,44 @@
 #!/bin/bash
 # E2E Test Suite for Artikel CMS Automation API
-# Purpose: End-to-end testing of the automation API endpoint
-# Usage: ./tests/e2e/test_automation_api.sh
+# Usage: bash tests/e2e/test_automation_api.sh
+#
+# Ditulis ulang 28 September 2026. Versi sebelumnya menguji endpoint yang salah:
+# /functions/v1/artikel-cms dengan header x-artikel-key dan body envelope
+# { action, data }. Edge Function itu tidak pernah ter-deploy dan sudah dihapus.
+# Endpoint yang nyata: /functions/v1/automation-api, header x-api-key, body flat.
+# Akibatnya suite lama pasti gagal di Test 1 dan tidak pernah menguji apa pun.
+#
+# Perubahan lain terhadap versi lama:
+#   * Test rate limit 125 request dihapus. Automation API belum punya rate limit
+#     di produksi, jadi test itu hanya menulis 125 artikel sampah ke database.
+#   * Test "invalid slug format" dihapus. API tidak memvalidasi bentuk slug;
+#     test itu menegaskan perilaku yang tidak pernah ada.
+#   * Ditambah test GET (verifikasi key), satu-satunya jalur yang berfungsi penuh.
+#   * `set -e` diganti penanganan kegagalan eksplisit supaya semua test berjalan
+#     dan ringkasan akhir tetap tercetak.
+#
+# ⚠️ Test ini menulis artikel sungguhan ke site milik API key yang dipakai.
+# JANGAN jalankan terhadap produksi. Pakai site khusus tes.
+#
+# Prasyarat:
+#   export SUPABASE_URL="https://supabase.example.test"
+#   export TEST_API_KEY="ak_live_..."      # buat lewat CMS: Pengaturan > API Keys
+#
+# Butuh: curl, jq
 
-set -e
-
-# Configuration
-API_URL="${SUPABASE_URL}/functions/v1/artikel-cms"
+API_URL="${SUPABASE_URL}/functions/v1/automation-api"
 API_KEY="${TEST_API_KEY}"
+PREFIX="e2e-$(date +%s)"
 
-if [ -z "$API_KEY" ]; then
+PASS=0
+FAIL=0
+
+pass() { echo "✓ $1"; PASS=$((PASS + 1)); }
+fail() { echo "✗ $1"; FAIL=$((FAIL + 1)); }
+
+if [ -z "$TEST_API_KEY" ]; then
   echo "Error: TEST_API_KEY environment variable not set"
+  echo "Key otomasi berawalan ak_live_. Buat lewat CMS: Pengaturan > API Keys."
   exit 1
 fi
 
@@ -19,238 +47,193 @@ if [ -z "$SUPABASE_URL" ]; then
   exit 1
 fi
 
+if ! command -v jq >/dev/null 2>&1; then
+  echo "Error: jq tidak terpasang"
+  exit 1
+fi
+
 echo "=== E2E Test Suite: Automation API ==="
 echo "API URL: $API_URL"
+echo "Prefix external_id: $PREFIX"
+echo ""
+echo "⚠️  Test ini menulis artikel sungguhan. Pastikan ini bukan produksi."
 echo ""
 
-# Test 1: Create new article
-echo "Test 1: Create new article"
-RESPONSE=$(curl -s -X POST "$API_URL" \
-  -H "Content-Type: application/json" \
-  -H "x-artikel-key: $API_KEY" \
-  -d '{
-    "action": "article.upsert",
-    "data": {
-      "external_id": "test-001",
-      "title": "E2E Test Article",
-      "slug": "e2e-test-article",
-      "content": "<p>This is an E2E test article</p>",
-      "excerpt": "E2E test excerpt",
-      "category": "Testing",
-      "status": "draft"
-    }
-  }')
-
-echo "$RESPONSE" | jq .
-ARTICLE_ID=$(echo "$RESPONSE" | jq -r '.data.article_id')
-
-if [ "$ARTICLE_ID" != "null" ]; then
-  echo "✓ Test 1 PASSED: Article created with ID $ARTICLE_ID"
-else
-  echo "✗ Test 1 FAILED"
-  exit 1
-fi
-echo ""
-
-# Test 2: Update existing article (idempotency)
-echo "Test 2: Update existing article"
-RESPONSE=$(curl -s -X POST "$API_URL" \
-  -H "Content-Type: application/json" \
-  -H "x-artikel-key: $API_KEY" \
-  -d '{
-    "action": "article.upsert",
-    "data": {
-      "external_id": "test-001",
-      "title": "E2E Test Article (Updated)",
-      "slug": "e2e-test-article-updated",
-      "content": "<p>This is an updated E2E test article</p>",
-      "excerpt": "Updated E2E test excerpt",
-      "category": "Testing",
-      "status": "published"
-    }
-  }')
-
-echo "$RESPONSE" | jq .
-CREATED=$(echo "$RESPONSE" | jq -r '.data.created')
-
-if [ "$CREATED" == "false" ]; then
-  echo "✓ Test 2 PASSED: Article updated (not created)"
-else
-  echo "✗ Test 2 FAILED: Expected update but got creation"
-  exit 1
-fi
-echo ""
-
-# Test 3: Invalid API key
-echo "Test 3: Invalid API key"
-RESPONSE=$(curl -s -w "\n%{http_code}" -X POST "$API_URL" \
-  -H "Content-Type: application/json" \
-  -H "x-artikel-key: invalid-key-12345" \
-  -d '{
-    "action": "article.upsert",
-    "data": {
-      "external_id": "test-002",
-      "title": "Should Fail",
-      "slug": "should-fail",
-      "content": "<p>Should fail</p>",
-      "category": "Testing"
-    }
-  }')
-
+# ---------------------------------------------------------------------------
+# Test 1: GET — verifikasi API key dan identitas site
+# ---------------------------------------------------------------------------
+echo "Test 1: GET verifikasi API key"
+RESPONSE=$(curl -s -w "\n%{http_code}" -X GET "$API_URL" -H "x-api-key: $API_KEY")
 HTTP_CODE=$(echo "$RESPONSE" | tail -n1)
-BODY=$(echo "$RESPONSE" | head -n-1)
+BODY=$(echo "$RESPONSE" | sed '$d')
 
-echo "$BODY" | jq .
+if [ "$HTTP_CODE" == "200" ] && [ "$(echo "$BODY" | jq -r '.site.id // empty')" != "" ]; then
+  pass "Test 1: key valid untuk site $(echo "$BODY" | jq -r '.site.name')"
+else
+  fail "Test 1: GET gagal (HTTP $HTTP_CODE)"
+  echo "$BODY" | jq . 2>/dev/null || echo "$BODY"
+  echo ""
+  echo "Tanpa key yang valid, sisa test tidak bermakna. Berhenti."
+  exit 1
+fi
+echo ""
+
+# ---------------------------------------------------------------------------
+# Test 2: API key salah ditolak
+# ---------------------------------------------------------------------------
+echo "Test 2: API key salah ditolak"
+RESPONSE=$(curl -s -w "\n%{http_code}" -X GET "$API_URL" -H "x-api-key: ak_live_invalid-key-12345")
+HTTP_CODE=$(echo "$RESPONSE" | tail -n1)
 
 if [ "$HTTP_CODE" == "401" ]; then
-  echo "✓ Test 3 PASSED: Invalid API key rejected"
+  pass "Test 2: key tidak dikenal ditolak 401"
 else
-  echo "✗ Test 3 FAILED: Expected 401, got $HTTP_CODE"
-  exit 1
+  fail "Test 2: harap 401, dapat $HTTP_CODE"
 fi
 echo ""
 
-# Test 4: Missing required field
-echo "Test 4: Missing required field (title)"
+# ---------------------------------------------------------------------------
+# Test 3: Buat artikel baru
+# ---------------------------------------------------------------------------
+echo "Test 3: Buat artikel baru"
 RESPONSE=$(curl -s -w "\n%{http_code}" -X POST "$API_URL" \
   -H "Content-Type: application/json" \
-  -H "x-artikel-key: $API_KEY" \
-  -d '{
-    "action": "article.upsert",
-    "data": {
-      "external_id": "test-003",
-      "slug": "missing-title",
-      "content": "<p>Missing title</p>",
-      "category": "Testing"
-    }
-  }')
+  -H "x-api-key: $API_KEY" \
+  -d "{
+    \"external_id\": \"${PREFIX}-001\",
+    \"title\": \"E2E Test Article\",
+    \"slug\": \"${PREFIX}-article\",
+    \"content\": \"<p>This is an E2E test article</p>\",
+    \"excerpt\": \"E2E test excerpt\",
+    \"category_name\": \"E2E Testing\",
+    \"status\": \"draft\"
+  }")
 
 HTTP_CODE=$(echo "$RESPONSE" | tail -n1)
-BODY=$(echo "$RESPONSE" | head -n-1)
+BODY=$(echo "$RESPONSE" | sed '$d')
 
-echo "$BODY" | jq .
+# RPC memakai RETURNS TABLE, jadi data adalah list.
+ARTICLE_ID=$(echo "$BODY" | jq -r '.data[0].article_id // .data.article_id // empty')
+CREATED_NEW=$(echo "$BODY" | jq -r '.data[0].created_new // .data.created_new // empty')
+CATEGORY_ID_1=$(echo "$BODY" | jq -r '.data[0].category_id // .data.category_id // empty')
 
-if [ "$HTTP_CODE" == "400" ]; then
-  echo "✓ Test 4 PASSED: Missing title rejected"
+if [ "$HTTP_CODE" == "200" ] && [ -n "$ARTICLE_ID" ] && [ "$CREATED_NEW" == "true" ]; then
+  pass "Test 3: artikel dibuat, id $ARTICLE_ID"
 else
-  echo "✗ Test 4 FAILED: Expected 400, got $HTTP_CODE"
-  exit 1
+  fail "Test 3: gagal membuat artikel (HTTP $HTTP_CODE)"
+  echo "$BODY" | jq . 2>/dev/null || echo "$BODY"
 fi
 echo ""
 
-# Test 5: Invalid slug format
-echo "Test 5: Invalid slug format"
+# ---------------------------------------------------------------------------
+# Test 4: Upsert idempoten lewat external_id
+# ---------------------------------------------------------------------------
+echo "Test 4: Upsert idempoten (external_id sama)"
 RESPONSE=$(curl -s -w "\n%{http_code}" -X POST "$API_URL" \
   -H "Content-Type: application/json" \
-  -H "x-artikel-key: $API_KEY" \
-  -d '{
-    "action": "article.upsert",
-    "data": {
-      "external_id": "test-004",
-      "title": "Invalid Slug Test",
-      "slug": "Invalid Slug With Spaces!",
-      "content": "<p>Invalid slug</p>",
-      "category": "Testing"
-    }
-  }')
+  -H "x-api-key: $API_KEY" \
+  -d "{
+    \"external_id\": \"${PREFIX}-001\",
+    \"title\": \"E2E Test Article (Updated)\",
+    \"slug\": \"${PREFIX}-article-updated\",
+    \"content\": \"<p>Updated E2E test article</p>\",
+    \"excerpt\": \"Updated excerpt\",
+    \"category_name\": \"E2E Testing\",
+    \"status\": \"draft\"
+  }")
 
 HTTP_CODE=$(echo "$RESPONSE" | tail -n1)
-BODY=$(echo "$RESPONSE" | head -n-1)
+BODY=$(echo "$RESPONSE" | sed '$d')
 
-echo "$BODY" | jq .
+UPDATED_ID=$(echo "$BODY" | jq -r '.data[0].article_id // .data.article_id // empty')
+CREATED_NEW=$(echo "$BODY" | jq -r '.data[0].created_new // .data.created_new // empty')
 
-if [ "$HTTP_CODE" == "400" ]; then
-  echo "✓ Test 5 PASSED: Invalid slug rejected"
+if [ "$HTTP_CODE" == "200" ] && [ "$CREATED_NEW" == "false" ] && [ "$UPDATED_ID" == "$ARTICLE_ID" ]; then
+  pass "Test 4: artikel diperbarui, bukan dibuat ulang"
 else
-  echo "✗ Test 5 FAILED: Expected 400, got $HTTP_CODE"
-  exit 1
+  fail "Test 4: harap update pada artikel yang sama (HTTP $HTTP_CODE, created_new=$CREATED_NEW)"
+  echo "$BODY" | jq . 2>/dev/null || echo "$BODY"
 fi
 echo ""
 
-# Test 6: Rate limiting (if enabled)
-echo "Test 6: Rate limiting test"
-echo "Sending 125 requests rapidly..."
-SUCCESS_COUNT=0
-RATE_LIMITED=0
+# ---------------------------------------------------------------------------
+# Test 5: Field wajib yang hilang ditolak
+# ---------------------------------------------------------------------------
+# Wajib menurut supabase/functions/automation-api/index.ts:
+# external_id, title, slug, content, category_name.
+echo "Test 5: Field wajib hilang ditolak"
+for missing in title slug content category_name; do
+  PAYLOAD=$(jq -nc \
+    --arg ext "${PREFIX}-missing-${missing}" \
+    --arg missing "$missing" \
+    '{external_id: $ext, title: "T", slug: "s-\($ext)", content: "<p>c</p>", category_name: "E2E Testing"}
+     | del(.[$missing])')
 
-for i in {1..125}; do
-  RESPONSE=$(curl -s -w "\n%{http_code}" -X POST "$API_URL" \
+  HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" -X POST "$API_URL" \
     -H "Content-Type: application/json" \
-    -H "x-artikel-key: $API_KEY" \
-    -d "{
-      \"action\": \"article.upsert\",
-      \"data\": {
-        \"external_id\": \"rate-test-$i\",
-        \"title\": \"Rate Test $i\",
-        \"slug\": \"rate-test-$i\",
-        \"content\": \"<p>Rate test content $i</p>\",
-        \"category\": \"Testing\"
-      }
-    }")
-  
-  HTTP_CODE=$(echo "$RESPONSE" | tail -n1)
-  
-  if [ "$HTTP_CODE" == "200" ] || [ "$HTTP_CODE" == "201" ]; then
-    SUCCESS_COUNT=$((SUCCESS_COUNT + 1))
-  elif [ "$HTTP_CODE" == "429" ]; then
-    RATE_LIMITED=$((RATE_LIMITED + 1))
-  fi
-  
-  # Show progress every 25 requests
-  if [ $((i % 25)) -eq 0 ]; then
-    echo "  Progress: $i/125 requests sent"
+    -H "x-api-key: $API_KEY" \
+    -d "$PAYLOAD")
+
+  if [ "$HTTP_CODE" == "400" ]; then
+    pass "Test 5: tanpa $missing ditolak 400"
+  else
+    fail "Test 5: tanpa $missing harap 400, dapat $HTTP_CODE"
   fi
 done
+echo ""
 
-echo "Results: $SUCCESS_COUNT successful, $RATE_LIMITED rate-limited"
+# ---------------------------------------------------------------------------
+# Test 6: Status tidak dikenal ditolak
+# ---------------------------------------------------------------------------
+echo "Test 6: Status tidak dikenal ditolak"
+HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" -X POST "$API_URL" \
+  -H "Content-Type: application/json" \
+  -H "x-api-key: $API_KEY" \
+  -d "{
+    \"external_id\": \"${PREFIX}-bad-status\",
+    \"title\": \"Bad Status\",
+    \"slug\": \"${PREFIX}-bad-status\",
+    \"content\": \"<p>x</p>\",
+    \"category_name\": \"E2E Testing\",
+    \"status\": \"tidak-ada\"
+  }")
 
-if [ "$RATE_LIMITED" -gt 0 ]; then
-  echo "✓ Test 6 PASSED: Rate limiting is active"
+if [ "$HTTP_CODE" == "400" ]; then
+  pass "Test 6: status tidak dikenal ditolak 400"
 else
-  echo "⚠ Test 6 WARNING: No rate limiting detected (may be disabled)"
+  fail "Test 6: harap 400, dapat $HTTP_CODE"
 fi
 echo ""
 
-# Test 7: Category reuse
-echo "Test 7: Category reuse"
-RESPONSE1=$(curl -s -X POST "$API_URL" \
+# ---------------------------------------------------------------------------
+# Test 7: Kategori dipakai ulang
+# ---------------------------------------------------------------------------
+echo "Test 7: Kategori dipakai ulang"
+RESPONSE=$(curl -s -X POST "$API_URL" \
   -H "Content-Type: application/json" \
-  -H "x-artikel-key: $API_KEY" \
-  -d '{
-    "action": "article.upsert",
-    "data": {
-      "external_id": "cat-test-1",
-      "title": "Category Test 1",
-      "slug": "category-test-1",
-      "content": "<p>Category test 1</p>",
-      "category": "E2E Category"
-    }
-  }')
+  -H "x-api-key: $API_KEY" \
+  -d "{
+    \"external_id\": \"${PREFIX}-cat-2\",
+    \"title\": \"Category Test 2\",
+    \"slug\": \"${PREFIX}-category-test-2\",
+    \"content\": \"<p>Category test 2</p>\",
+    \"category_name\": \"E2E Testing\"
+  }")
 
-CATEGORY_ID_1=$(echo "$RESPONSE1" | jq -r '.data.category_id')
+CATEGORY_ID_2=$(echo "$RESPONSE" | jq -r '.data[0].category_id // .data.category_id // empty')
 
-RESPONSE2=$(curl -s -X POST "$API_URL" \
-  -H "Content-Type: application/json" \
-  -H "x-artikel-key: $API_KEY" \
-  -d '{
-    "action": "article.upsert",
-    "data": {
-      "external_id": "cat-test-2",
-      "title": "Category Test 2",
-      "slug": "category-test-2",
-      "content": "<p>Category test 2</p>",
-      "category": "E2E Category"
-    }
-  }')
-
-CATEGORY_ID_2=$(echo "$RESPONSE2" | jq -r '.data.category_id')
-
-if [ "$CATEGORY_ID_1" == "$CATEGORY_ID_2" ]; then
-  echo "✓ Test 7 PASSED: Category reused correctly"
+if [ -n "$CATEGORY_ID_1" ] && [ "$CATEGORY_ID_1" == "$CATEGORY_ID_2" ]; then
+  pass "Test 7: kategori dipakai ulang"
 else
-  echo "✗ Test 7 FAILED: Different category IDs ($CATEGORY_ID_1 vs $CATEGORY_ID_2)"
+  fail "Test 7: category_id berbeda ($CATEGORY_ID_1 vs $CATEGORY_ID_2)"
+fi
+echo ""
+
+# ---------------------------------------------------------------------------
+echo "=== Ringkasan: $PASS lulus, $FAIL gagal ==="
+echo ""
+echo "Artikel tes memakai prefix external_id '$PREFIX'. Bersihkan lewat CMS bila perlu."
+
+if [ "$FAIL" -gt 0 ]; then
   exit 1
 fi
-echo ""
-
-echo "=== All E2E Tests Completed Successfully ==="
