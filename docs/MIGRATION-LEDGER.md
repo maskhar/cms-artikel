@@ -32,8 +32,10 @@ Marker lebih jujur.
 
 ## Status produksi (`20.20.20.173`, schema `artikel`)
 
-Migrasi #01–#27 **sudah diterapkan** di produksi; #28 baru ada di repo dan
-**belum** diterapkan. Diverifikasi 28 September 2026 lewat query marker read-only.
+Semua 28 migrasi di `supabase/migrations/` **sudah diterapkan**. Diverifikasi
+28 September 2026 lewat query marker read-only. #28 diterapkan 28 September 2026
+(backup `~/db-backups/pre-280002-2026-09-28.dump`, dry-run `begin…rollback` lebih
+dulu, lalu `COMMIT` + `NOTIFY`).
 
 | # | Migrasi | Marker pembuktian | Status |
 |---|---|---|---|
@@ -64,7 +66,7 @@ Migrasi #01–#27 **sudah diterapkan** di produksi; #28 baru ada di repo dan
 | 25 | `202609130001_sync_global_media_library.sql` | fungsi `is_media_member` | ✅ |
 | 26 | `202609190001_security_hardening.sql` | `has_site_role_for`, MIME allowlist non-null, policy `members read site media assets` | ✅ |
 | 27 | `202609280001_automation_article_actor.sql` | fungsi `current_article_actor`; `validate_article_write` memanggilnya; RPC memanggil `set_config('artikel.automation_actor', …)` | ✅ |
-| 28 | `202609280002_preserve_galleries_on_site_delete.sql` | `galleries.site_id` nullable **dan** `galleries_site_id_fkey`/`media_assets_site_id_fkey` = `set null`; `delete_site` tidak lagi memuat `delete from artikel.gallery_items` | ⏳ belum di produksi |
+| 28 | `202609280002_preserve_galleries_on_site_delete.sql` | `galleries.site_id` nullable **dan** `galleries_site_id_fkey`/`media_assets_site_id_fkey` = `set null`; `delete_site` tidak lagi memuat `delete from artikel.gallery_items` | ✅ |
 
 Query marker lengkap yang dipakai ada di bagian [Cara verifikasi ulang](#cara-verifikasi-ulang).
 
@@ -185,6 +187,41 @@ Migrasi ini tidak diverifikasi dari membaca DDL saja. Yang dijalankan sungguhan:
   punya cabang `site_id is null`. Policy itu ikut diperbaiki di #280002.
 - Kontrol regresi CRITICAL #2: editor site B melihat `0` untuk media, galeri,
   dan item milik site C yang masih aktif. Yang dilonggarkan hanya baris yatim.
+
+#### ⛔ Bug terbuka yang ditemukan saat menerapkan #280002 — `delete_site` gagal untuk site aktif
+
+**Bukan regresi #280002, dan tidak diperbaiki olehnya.** Diuji langsung di
+produksi 28 September 2026: membuat site aktif lalu memanggil `delete_site`
+berhenti dengan
+
+```
+ERROR: update or delete on table "sites" violates foreign key constraint
+       "categories_site_id_fkey" on table "categories"
+```
+
+Dibuktikan pra-ada, bukan disimpulkan: body `delete_site` versi **lama**
+dipasang ulang sementara di dalam `begin … rollback` dan diuji pada kondisi yang
+sama — gagal dengan galat yang sama persis.
+
+Rantainya: trigger `attach_global_articles_to_new_site` (dari #120001) menyisipkan
+kategori ke **setiap site yang aktif** begitu dibuat, sedangkan tiga foreign key
+ke `artikel.sites` memakai `RESTRICT`:
+
+| Tabel | Constraint | `on delete` |
+|---|---|---|
+| `artikel.categories` | `categories_site_id_fkey` | **RESTRICT** |
+| `artikel.tags` | `tags_site_id_fkey` | **RESTRICT** |
+| `artikel.articles` | `articles_site_id_fkey` | **RESTRICT** |
+
+Artinya penghapusan site aktif mana pun mustahil lewat RPC ini; keempat site
+produksi sekarang punya kategori (2/2/2/1), jadi keempatnya kena.
+
+Belum diperbaiki karena perbaikannya menuntut keputusan produk yang belum
+diambil: apakah menghapus site harus ikut menghapus artikel, kategori dan tag
+miliknya (cascade), menolak selama masih ada isi (RESTRICT eksplisit dengan
+pesan yang jelas), atau mempertahankannya seperti galeri dan media. Jangan
+diubah jadi CASCADE tanpa membahas itu — artikel adalah isi, bukan aset yang
+bisa diyatimkan begitu saja.
 
 Satu perilaku **sengaja tidak diubah**: `user_roles_site_id_fkey` CASCADE, jadi
 menghapus site menghapus role orang di site itu; kalau itu satu-satunya site-nya
