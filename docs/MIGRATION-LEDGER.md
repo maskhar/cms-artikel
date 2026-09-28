@@ -227,6 +227,21 @@ Semua baris harus `true`, kecuali `schema_migrations_ada` (`false`) dan
 5. Sebelum apply manual di server: jalankan blok verifikasi di atas lebih dulu,
    supaya diketahui keadaan awal — tidak ada tabel ledger yang akan mengingatkan.
 
+## Test yang mengunci keputusan izin
+
+Migrasi menegakkan izin di database; test berikut mengunci keputusan izin di
+sisi aplikasi supaya keduanya tidak menyimpang diam-diam:
+
+| Berkas | Mengunci |
+|---|---|
+| `tests/integration/site-delete-authz.test.ts` | Gerbang `DELETE /api/cms/sites/[siteId]` — CRITICAL #1, termasuk bahwa service-role client tidak tersentuh saat izin ditolak |
+| `tests/integration/bulk-articles-authz.test.ts` | `privileged()` pada aksi massal; delete permanen hanya admin |
+| `tests/integration/public-api-key-auth.test.ts` | Hash ber-pepper, pencabutan, kedaluwarsa, site nonaktif, rate limit fail-closed |
+| `src/proxy.test.ts` | Redirect gate, kebijakan sesi 6 jam, CSP + nonce, cakupan matcher |
+| `src/lib/sanitize-html.test.ts` | 24 payload XSS terhadap konten yang diserve Public Read API |
+
+Dijalankan otomatis oleh `.github/workflows/ci.yml` (tsc, lint, test, build).
+
 ## Dokumen terkait
 
 - [`DB-STATE-SNAPSHOT.md`](DB-STATE-SNAPSHOT.md) — snapshot policy/function produksi sebelum Fase 1.
