@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { dbErrorResponse } from "@/lib/api-error";
 import { z } from "zod";
 import { createClient } from "@/lib/supabase/server";
 
@@ -13,6 +14,6 @@ export async function GET(request: NextRequest) {
   let query = supabase.schema("artikel").from("audit_logs").select("id, site_id, actor_id, action, entity_type, entity_id, metadata, created_at, sites(name)").order("created_at", { ascending: false }).limit(parsed.data.limit);
   if (parsed.data.siteId) query = query.eq("site_id", parsed.data.siteId);
   const { data, error } = await query;
-  if (error) return NextResponse.json({ error: error.message }, { status: 400 });
+  if (error) return dbErrorResponse(error);
   return NextResponse.json({ data });
 }

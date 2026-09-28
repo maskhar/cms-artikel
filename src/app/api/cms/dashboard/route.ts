@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { dbErrorResponse } from "@/lib/api-error";
 import { createClient } from "@/lib/supabase/server";
 
 export async function GET() {
@@ -14,6 +15,6 @@ export async function GET() {
     db.from("articles").select("id, title, status, updated_at, categories(name), sites!articles_site_id_fkey(name)").order("updated_at", { ascending: false }).limit(8),
   ]);
   const error = articles.error ?? review.error ?? published.error ?? categories.error ?? recent.error;
-  if (error) return NextResponse.json({ error: error.message }, { status: 400 });
+  if (error) return dbErrorResponse(error);
   return NextResponse.json({ data: { stats: { articles: articles.count ?? 0, inReview: review.count ?? 0, published: published.count ?? 0, activeCategories: categories.count ?? 0 }, recent: recent.data ?? [] } });
 }

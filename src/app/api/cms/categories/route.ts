@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { dbErrorResponse } from "@/lib/api-error";
 import { z } from "zod";
 import { createClient } from "@/lib/supabase/server";
 
@@ -10,7 +11,7 @@ export async function GET(request: NextRequest) {
   const parsed = querySchema.safeParse({ siteId: request.nextUrl.searchParams.get("siteId") });
   if (!parsed.success) return NextResponse.json({ error: "Invalid site ID" }, { status: 400 });
   const { data, error } = await supabase.schema("artikel").from("categories").select("id, name, slug").eq("site_id", parsed.data.siteId).eq("is_active", true).order("name");
-  if (error) return NextResponse.json({ error: error.message }, { status: 400 });
+  if (error) return dbErrorResponse(error);
   return NextResponse.json({ data });
 }
 
