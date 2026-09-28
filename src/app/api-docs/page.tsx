@@ -67,7 +67,7 @@ function ApiDocsContent() {
                   Automation API menjadi endpoint utama untuk push artikel dari semua project. Public Read API terpisah dan hanya untuk membaca artikel published.
                 </p>
                 <p className="mt-3 text-xs font-semibold text-red-200">
-                  Revisi dokumentasi: 12 September 2026, 03:46 ICT (UTC+7)
+                  Revisi dokumentasi: 28 September 2026 ICT (UTC+7)
                 </p>
               </div>
             </div>
@@ -126,7 +126,7 @@ function ApiDocsContent() {
 
           <section className="mt-5 rounded-3xl border border-red-100 bg-red-50 p-5 sm:p-6">
             <h2 className="text-lg font-bold">Riwayat perubahan · 12 September 2026</h2>
-            <p className="mt-2 text-sm text-slate-600">Berdasarkan kode repository. Waktu revisi bukan waktu deployment; Edge Function server belum diverifikasi ulang.</p>
+            <p className="mt-2 text-sm text-slate-600">Berdasarkan kode repository. Edge Function di server sudah diverifikasi cocok dengan repo (md5 identik, 28 September 2026).</p>
             <ul className="mt-3 space-y-2 text-sm text-slate-700">
               <li>POST /api/cms/api-keys/{'{keyId}'}/rotate mengganti secret pada record sama; ID dan label tetap. Respons kini 200, bukan 201. DELETE /api/cms/api-keys/{'{keyId}'} sekarang permanen.</li>
               <li>Nilai key hanya bisa disalin selama masih tersedia setelah generate/rotasi; tidak dapat diambil ulang setelah reload.</li>
@@ -230,6 +230,11 @@ function ApiDocsContent() {
                       <strong>Optional:</strong> excerpt, featured_image, status,
                       meta_description, meta_keywords, published_at
                     </li>
+                    <li>
+                      <strong>Bentuk yang divalidasi:</strong>{" "}
+                      <code>meta_keywords</code> harus array (string ditolak
+                      400), <code>published_at</code> harus ISO 8601.
+                    </li>
                     <li>category_id, tags, seo_title, canonical_url, robots, og_image_path, og_image_url, dan publishScope tidak diteruskan oleh Automation API saat ini.</li>
                   </ul>
                 </div>
@@ -329,7 +334,8 @@ function ApiDocsContent() {
                     <strong>Auto Category:</strong> Buat kategori jika belum ada
                   </li>
                   <li>
-                    <strong>Status Control:</strong> Draft hingga published
+                    <strong>Status Control:</strong> draft, in_review,
+                    revision_requested, approved, published, archived
                   </li>
                 </ul>
               </section>
@@ -338,7 +344,22 @@ function ApiDocsContent() {
                 <div className="flex items-center gap-2 font-bold">
                   <Container size={18} /> Deployment
                 </div>
-                <CodeBlock>{`ssh maskhar@supabase-server\ncd ~/apps/cms-artikel\ngit pull\ndocker compose up -d --build\ndocker logs cms-artikel --tail 100`}</CodeBlock>
+                <p className="mt-3 text-sm leading-6 text-slate-600">
+                  CMS dan Supabase berada di <strong>mesin berbeda</strong>. CMS
+                  dibangun dan dijalankan di workstation; jangan deploy lewat
+                  SSH. Snippet lama di tempat ini menyuruh SSH ke server dan
+                  membuat dua deploy mendarat di container yang tidak menerima
+                  trafik.
+                </p>
+                <CodeBlock>{`# CMS — dijalankan di workstation, bukan lewat SSH\npwsh scripts/deploy.ps1\n\n# Supabase / Edge Function — di server\nssh maskhar@supabase-server\ncd ~/docker/supabase/supabase-1.26.05/docker`}</CodeBlock>
+                <p className="mt-3 text-sm leading-6 text-slate-600">
+                  Status produksi hanya sah diverifikasi lewat{" "}
+                  <code className="rounded bg-slate-100 px-1.5 py-0.5">
+                    https://cms.carubra.com
+                  </code>
+                  . Probe <code>127.0.0.1:3002</code> tidak membuktikan apa pun —
+                  port itu ada di kedua mesin.
+                </p>
               </section>
 
               <section className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
@@ -346,15 +367,13 @@ function ApiDocsContent() {
                   <Code2 size={18} /> Rate limit
                 </div>
                 <p className="mt-3 text-sm leading-6 text-slate-600">
-                  <strong>Public Read API:</strong> default 120 request per 60
-                  detik. Baca header <code>X-RateLimit-Remaining</code> dan
-                  hormati <code>Retry-After</code> saat status 429.
+                  Keduanya: <strong>120 request per 60 detik</strong> per API
+                  key. Baca <code>X-RateLimit-Remaining</code> dan hormati{" "}
+                  <code>Retry-After</code> saat status 429.
                 </p>
                 <p className="mt-3 text-sm leading-6 text-slate-600">
-                  <strong>Automation API:</strong> belum ada rate limit di
-                  produksi. Endpoint ini tidak pernah mengembalikan 429 dan
-                  tidak mengirim header <code>X-RateLimit-*</code> untuk saat
-                  ini. Jangan andalkan keduanya dalam logika retry.
+                  Batasnya dihitung per API key, bukan per IP — memakai key yang
+                  sama dari banyak server tetap berbagi satu jatah.
                 </p>
               </section>
 
@@ -372,12 +391,32 @@ function ApiDocsContent() {
                     terverifikasi cocok dengan kode.
                   </p>
                   <p>
-                    Dokumen lain di{" "}
+                    Jangan pakai{" "}
                     <code className="rounded bg-slate-100 px-1.5 py-0.5">
-                      docs/
+                      SDD.md
+                    </code>
+                    ,{" "}
+                    <code className="rounded bg-slate-100 px-1.5 py-0.5">
+                      PRD.md
+                    </code>
+                    ,{" "}
+                    <code className="rounded bg-slate-100 px-1.5 py-0.5">
+                      TODO.md
+                    </code>
+                    , atau{" "}
+                    <code className="rounded bg-slate-100 px-1.5 py-0.5">
+                      API-DECISIONS.md
                     </code>{" "}
-                    sedang ditinjau ulang; beberapa masih menjelaskan endpoint
-                    lama yang sudah tidak dipakai.
+                    sebagai acuan integrasi: semuanya masih menyebut endpoint{" "}
+                    <code className="rounded bg-slate-100 px-1.5 py-0.5">
+                      POST /functions/v1/artikel-cms
+                    </code>{" "}
+                    yang sudah dipensiunkan dan tidak pernah ter-deploy. Yang
+                    berlaku adalah{" "}
+                    <code className="rounded bg-slate-100 px-1.5 py-0.5">
+                      automation-api
+                    </code>
+                    .
                   </p>
                 </div>
               </section>
