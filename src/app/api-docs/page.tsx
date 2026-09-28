@@ -351,7 +351,7 @@ function ApiDocsContent() {
                   membuat dua deploy mendarat di container yang tidak menerima
                   trafik.
                 </p>
-                <CodeBlock>{`# CMS — dijalankan di workstation, bukan lewat SSH\npwsh scripts/deploy.ps1\n\n# Supabase / Edge Function — di server\nssh maskhar@supabase-server\ncd ~/docker/supabase/supabase-1.26.05/docker`}</CodeBlock>
+                <CodeBlock>{`# CMS — dijalankan di workstation, bukan lewat SSH\npowershell -NoProfile -ExecutionPolicy Bypass -File scripts/deploy.ps1\n\n# Supabase / Edge Function — di server\nssh maskhar@supabase-server\ncd ~/docker/supabase/supabase-1.26.05/docker`}</CodeBlock>
                 <p className="mt-3 text-sm leading-6 text-slate-600">
                   Status produksi hanya sah diverifikasi lewat{" "}
                   <code className="rounded bg-slate-100 px-1.5 py-0.5">

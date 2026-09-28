@@ -19,7 +19,10 @@ $ErrorActionPreference = 'Stop'
 Push-Location (Split-Path -Parent $PSScriptRoot)
 try {
 
-$stamp = Get-Date -Format 'yyyy-MM-dd'
+# Stempel memuat jam: dua deploy di hari yang sama tidak boleh saling menimpa
+# titik pulang. Versi lama memakai tanggal saja, sehingga deploy kedua
+# membuang satu-satunya image yang bisa dipulihkan.
+$stamp = Get-Date -Format 'yyyy-MM-dd-HHmm'
 
 Write-Host "==> Menandai image sekarang sebagai titik pulang..." -ForegroundColor Cyan
 docker tag cms-artikel-cms-artikel "cms-artikel-cms-artikel:rollback-$stamp"
@@ -33,11 +36,36 @@ if ($LASTEXITCODE -ne 0) { throw "Build gagal. Produksi tidak tersentuh." }
 Write-Host "`n==> Memeriksa matcher middleware DI DALAM image baru..." -ForegroundColor Cyan
 # Diperiksa pada artefak build, bukan file sumber: matcher tanpa batas segmen
 # membuat /api-keys cocok dengan pengecualian `api` dan lolos gerbang auth.
-$manifest = docker run --rm --entrypoint sh cms-artikel-cms-artikel:latest -c 'cat .next/server/functions-config-manifest.json'
-if ($manifest -notmatch 'api\(\?:') {
-    throw "Matcher middleware tidak punya batas segmen `api(?:/|`$)`. Deploy dibatalkan."
+#
+# `docker run` mengembalikan ARRAY baris, bukan satu string. Pada array,
+# `-match`/`-notmatch` di PowerShell adalah FILTER, bukan uji benar/salah:
+# keduanya mengembalikan daftar baris, dan daftar tak kosong selalu truthy.
+# Versi pertama skrip ini memakai `if ($manifest -notmatch ...)` sehingga
+# gerbangnya gagal 100% dari waktu, apa pun isi manifesnya. Karena itu
+# array digabung dulu jadi satu string dengan -join.
+$manifest = (docker run --rm --entrypoint sh cms-artikel-cms-artikel:latest `
+    -c 'cat .next/server/functions-config-manifest.json') -join "`n"
+if ($LASTEXITCODE -ne 0 -or [string]::IsNullOrWhiteSpace($manifest)) {
+    throw "Tidak bisa membaca functions-config-manifest.json dari image. Deploy dibatalkan."
 }
-Write-Host "    Batas segmen ada."
+
+# Dicocokkan ke originalSource milik /_middleware, bukan sekadar "ada
+# substring api(?: di suatu tempat dalam berkas" — regexp hasil kompilasi
+# juga memuatnya, jadi cek longgar bisa lulus walau matcher sumbernya salah.
+$src = [regex]::Match($manifest, '"/_middleware".*?"originalSource"\s*:\s*"([^"]+)"',
+    [System.Text.RegularExpressions.RegexOptions]::Singleline)
+if (-not $src.Success) {
+    throw "Middleware tidak terdaftar di manifes image (/_middleware tidak ada). Deploy dibatalkan."
+}
+$matcher = $src.Groups[1].Value
+Write-Host "    matcher: $matcher"
+
+# Tanpa batas segmen, /api-keys cocok dengan pengecualian `api` lalu lolos
+# gerbang auth — halaman penerbit & perotasi API key jadi yang tak berpagar.
+if ($matcher -notlike '*api(?:/|$)*') {
+    throw "Matcher tidak punya batas segmen setelah 'api'. /api-keys akan lolos gerbang auth. Deploy dibatalkan."
+}
+Write-Host "    Batas segmen ada." -ForegroundColor Green
 
 Write-Host "`n==> Menukar container (downtime ~10 detik)..." -ForegroundColor Cyan
 docker compose up -d
@@ -64,7 +92,9 @@ $harap = @{
     '/login'    = 200
 }
 foreach ($path in $harap.Keys | Sort-Object) {
-    $kode = (curl.exe -sS -o /dev/null -w '%{http_code}' --max-time 25 "https://cms.carubra.com$path")
+    # -o NUL, bukan /dev/null: curl.exe di Windows gagal menulis ke path Unix
+    # dan memuntahkan "curl: (23) client returned ERROR on write" tiap baris.
+    $kode = (curl.exe -sS -o NUL -w '%{http_code}' --max-time 25 "https://cms.carubra.com$path")
     $ok = ([int]$kode -eq $harap[$path])
     $warna = if ($ok) { 'Green' } else { 'Red' }
     Write-Host ("    {0,-12} -> {1}  (harap {2})" -f $path, $kode, $harap[$path]) -ForegroundColor $warna

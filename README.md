@@ -218,7 +218,7 @@ Database   : maskhar@20.20.20.173           → supabase-db      → supabase.ca
 Dijalankan **di workstation**, bukan lewat SSH:
 
 ```bash
-pwsh scripts/deploy.ps1
+powershell -NoProfile -ExecutionPolicy Bypass -File scripts/deploy.ps1
 ```
 
 Skrip itu menandai image rollback, build, memeriksa matcher middleware di dalam
@@ -320,7 +320,7 @@ Internal project — proprietary license.
 **DevOps Contact:**
 - SSH: `maskhar@20.20.20.173` — **khusus Supabase**, aplikasi tidak ada di sini
 - Supabase: `~/docker/supabase/supabase-1.26.05/docker`
-- CMS: berjalan di workstation; deploy `pwsh scripts/deploy.ps1`
+- CMS: berjalan di workstation; deploy `powershell -NoProfile -ExecutionPolicy Bypass -File scripts/deploy.ps1`
 
 **Dokumentasi:**
 - [Panduan Lengkap](docs/PANDUAN-PENGGUNAAN.md)

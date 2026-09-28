@@ -351,7 +351,7 @@ tidak di-set.
 Dijalankan di root repo, **di workstation**:
 
 ```bash
-pwsh scripts/deploy.ps1
+powershell -NoProfile -ExecutionPolicy Bypass -File scripts/deploy.ps1
 ```
 
 Skrip itu menandai image rollback, build, memeriksa matcher middleware di dalam
