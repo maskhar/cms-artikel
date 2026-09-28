@@ -32,10 +32,16 @@ Marker lebih jujur.
 
 ## Status produksi (`20.20.20.173`, schema `artikel`)
 
-Semua 28 migrasi di `supabase/migrations/` **sudah diterapkan**. Diverifikasi
+28 dari 29 migrasi di `supabase/migrations/` **sudah diterapkan**. Diverifikasi
 28 September 2026 lewat query marker read-only. #28 diterapkan 28 September 2026
 (backup `~/db-backups/pre-280002-2026-09-28.dump`, dry-run `begin…rollback` lebih
 dulu, lalu `COMMIT` + `NOTIFY`).
+
+**#29 belum diterapkan ke produksi.** Ia mengubah perilaku yang terlihat pengguna
+(penghapusan site tidak lagi ditolak) dan harus naik **bersama** deploy aplikasi:
+route `DELETE /api/cms/sites/[siteId]` sudah mencabut penolakan 409-nya, jadi
+kalau app naik lebih dulu, penghapusan berakhir di galat FK mentah; kalau migrasi
+naik lebih dulu, UI melaporkan `orphanedArticles` yang tidak dikirim server.
 
 | # | Migrasi | Marker pembuktian | Status |
 |---|---|---|---|
@@ -67,6 +73,7 @@ dulu, lalu `COMMIT` + `NOTIFY`).
 | 26 | `202609190001_security_hardening.sql` | `has_site_role_for`, MIME allowlist non-null, policy `members read site media assets` | ✅ |
 | 27 | `202609280001_automation_article_actor.sql` | fungsi `current_article_actor`; `validate_article_write` memanggilnya; RPC memanggil `set_config('artikel.automation_actor', …)` | ✅ |
 | 28 | `202609280002_preserve_galleries_on_site_delete.sql` | `galleries.site_id` nullable **dan** `galleries_site_id_fkey`/`media_assets_site_id_fkey` = `set null`; `delete_site` tidak lagi memuat `delete from artikel.gallery_items` | ✅ |
+| 29 | `202609280003_orphan_articles_on_site_delete.sql` | `articles.site_id` nullable + `articles_site_id_fkey` = `set null`; `categories_site_id_fkey`/`tags_site_id_fkey` = `cascade`; fungsi `is_global_admin`; kategori global `tanpa-kategori`; indeks parsial `articles_orphan_slug_key` | ⬜ **belum di produksi** |
 
 Query marker lengkap yang dipakai ada di bagian [Cara verifikasi ulang](#cara-verifikasi-ulang).
 
@@ -117,12 +124,16 @@ secara manual, **urutan salah = regresi diam-diam**:
 | Objek | Ditulis oleh | Pemenang yang benar |
 |---|---|---|
 | `artikel.audit_logs_site_id_fkey` | #13 → #14 → #190001 | **#190001** (`on delete set null deferrable`) — #14 memasang `cascade` yang menghapus jejak audit |
-| `artikel.delete_site` | #15 → #16 → #17 → #18 → #190001 → #280001 → #280002 | **#280002** (guard `actor_id` + audit dipertahankan verbatim, `delete from gallery_items` dicabut) |
+| `artikel.delete_site` | #15 → #16 → #17 → #18 → #190001 → #280001 → #280002 → #280003 | **#280003** (guard `actor_id` + audit tetap verbatim; menambah peyatiman artikel di bawah marker `artikel.orphaning`) |
+| `artikel.articles_site_id_fkey` | #01 (`restrict`) → #280003 | **#280003** (`set null`, kolom nullable) |
+| `artikel.categories_site_id_fkey` / `tags_site_id_fkey` | #01 (`restrict`) → #280003 | **#280003** (`cascade`) — keduanya harus berubah bersama; mengubah `categories` saja menyisakan galat FK dari `tags` |
+| Policy `articles` (SELECT/UPDATE/DELETE/INSERT) | #02 → #190001 → #280003 | **#280003** (cabang `site_id is null` → `is_global_admin()`, menimpa cabang `author_id = auth.uid()`; INSERT diperketat `site_id is not null`) |
 | `artikel.galleries_site_id_fkey` | #12 (`cascade`) → #18 (`set null`, tak pernah kena produksi) → #280002 | **#280002** (`set null`, kolom nullable) |
 | `artikel.media_assets_site_id_fkey` | #12 (`cascade`) → #18 (`set null`, tak pernah kena produksi) → #280002 | **#280002** (`set null`) — #110019/#130001 melonggarkan kolomnya tapi **tidak** FK-nya |
 | Policy `members read site media assets` | #190001 → #280002 | **#280002** (cabang `site_id is null` → `is_media_member()`) |
 | Policy `galleries` / `gallery_items` | #12 → #280002 | **#280002** (cabang yatim untuk SELECT; INSERT justru diperketat `site_id is not null`) |
-| `artikel.validate_article_write` | #05 → #07 → #190001 → #280001 | **#280001** (dukungan aktor otomasi) |
+| `artikel.validate_article_write` | #05 → #07 → #190001 → #280001 → #280003 | **#280003** (dukungan aktor otomasi dipertahankan; guard pindah-site jadi tiga cabang supaya artikel yatim bisa dipungut admin global) |
+| `artikel.sync_article_distributions` | #120001 → #280003 | **#280003** (return awal saat `new.site_id is null` — juga bagian jaminan tak-terlihat-publik, bukan sekadar hindar galat) |
 | `artikel.has_site_role_for` | #190001 → #280001 | **#280001** |
 | Policy `media_assets` | #12 → #110019 → #130001 → #190001 | **#190001** (ber-scope per site) |
 | `storage.buckets.allowed_mime_types` | #110019 (null) → #130001 (null) → #190001 (allowlist) | **#190001** (non-null; menutup stored-XSS via `text/html`, `image/svg+xml`) |
@@ -188,7 +199,7 @@ Migrasi ini tidak diverifikasi dari membaca DDL saja. Yang dijalankan sungguhan:
 - Kontrol regresi CRITICAL #2: editor site B melihat `0` untuk media, galeri,
   dan item milik site C yang masih aktif. Yang dilonggarkan hanya baris yatim.
 
-#### ⛔ Bug terbuka yang ditemukan saat menerapkan #280002 — `delete_site` gagal untuk site aktif
+#### ✅ Ditutup oleh #280003 — `delete_site` gagal untuk site aktif
 
 **Bukan regresi #280002, dan tidak diperbaiki olehnya.** Diuji langsung di
 produksi 28 September 2026: membuat site aktif lalu memanggil `delete_site`
@@ -216,17 +227,68 @@ ke `artikel.sites` memakai `RESTRICT`:
 Artinya penghapusan site aktif mana pun mustahil lewat RPC ini; keempat site
 produksi sekarang punya kategori (2/2/2/1), jadi keempatnya kena.
 
-Belum diperbaiki karena perbaikannya menuntut keputusan produk yang belum
-diambil: apakah menghapus site harus ikut menghapus artikel, kategori dan tag
-miliknya (cascade), menolak selama masih ada isi (RESTRICT eksplisit dengan
-pesan yang jelas), atau mempertahankannya seperti galeri dan media. Jangan
-diubah jadi CASCADE tanpa membahas itu — artikel adalah isi, bukan aset yang
-bisa diyatimkan begitu saja.
+Perbaikannya menuntut keputusan produk, dan keputusan itu diambil 28 September
+2026: **artikel diyatimkan, kategori dan tag ikut terhapus.** Site yang dihapus
+melepas artikelnya (`site_id → null`, `status → draft`, kategori → penampung
+global `tanpa-kategori`) alih-alih memblokir atau memusnahkannya; kategori dan
+tag jadi CASCADE. Artikel yatim hanya terlihat **admin global** — sengaja
+termasuk *bukan* penulisnya sendiri — dan bisa dipungut kembali dengan
+memindahkannya ke site lain. Diimplementasikan di #280003.
+
+Kategori dan tag **tidak** ikut dijadikan global meski sempat dipertimbangkan.
+Alasannya bukan selera: empat site produksi masing-masing punya kategori
+`global`, dan tiga punya `news`. `UNIQUE (site_id, slug)` tidak menganggap NULL
+sebagai duplikat, jadi menggloblkan mereka menghasilkan empat kategori "Global"
+yang tak terbedakan **tanpa satu pun galat**. Kekacauan senyap lebih mahal
+daripada label yang bisa dibuat ulang dalam sepuluh detik. Indeks parsial
+`categories_global_slug_key` / `articles_orphan_slug_key` memasang jaring itu
+untuk baris yatim yang tersisa; `delete_site` mendeduplikasi slug artikel lebih
+dulu dengan sufiks 12 hex dari UUID-nya.
 
 Satu perilaku **sengaja tidak diubah**: `user_roles_site_id_fkey` CASCADE, jadi
 menghapus site menghapus role orang di site itu; kalau itu satu-satunya site-nya
 ia berhenti jadi anggota CMS dan tidak lagi melihat aset yatim, termasuk yang
 dibuatnya. Itu benar — tanpa role aktif memang tidak ada hak baca.
+
+#### Yang dibuktikan uji perilaku #280003 (database lokal, `begin … rollback`)
+
+Uji perilaku, bukan telaah skema — dan itu yang membedakan: lima bug nyata di
+migrasi ini hanya muncul saat dijalankan, tidak satu pun terlihat dari DDL-nya.
+
+- **Artikel selamat dan bisa disunting lagi.** Sesudah site dihapus: `site_id`
+  null, `status` `draft`, kategori `Tanpa Kategori`, tag dan baris distribusi 0.
+- **Tidak keluar di website mana pun**, termasuk yang lain. Jaminannya bukan
+  logika baru: Read API publik membaca `artikel.article_sites`
+  ([`v1/articles/route.ts:17`](../src/app/api/v1/articles/route.ts:17) memfilter
+  `site_id` milik API key), dan `article_sites_site_id_fkey` sudah CASCADE sejak
+  #120001. Artikel yatim kehilangan seluruh baris distribusinya, jadi tak ada
+  API key yang bisa menjangkaunya.
+- **Visibilitas benar-benar admin saja** — diuji per-peran, bukan disimpulkan:
+
+  | Siapa | Baris terlihat |
+  |---|---|
+  | admin global | 1 |
+  | **penulis artikel itu sendiri** | 0 |
+  | admin site lain | 0 |
+  | editor site lain | 0 |
+
+  Baris kedua yang mahal: policy lama punya cabang `author_id = auth.uid()` yang
+  akan diam-diam mempertahankan akses penulis. Harus ditimpa eksplisit.
+- **Jalur pungut-kembali hidup.** Admin global memindahkan artikel yatim ke site
+  B: baris distribusi terbentuk kembali (1), status tetap `draft`. Tanpa
+  perubahan pada `validate_article_write`, permintaan "jadi bisa aku edit ulang"
+  mustahil — trigger itu memblokir perpindahan dari `site_id` null, dan itu
+  tidak terlihat sama sekali dari skema.
+- **Tabrakan slug tertangani**, bukan diserahkan ke indeks: dua site dengan
+  artikel ber-slug sama dihapus → `promo-akhir-tahun` dan
+  `promo-akhir-tahun-000000…` (12 hex dari UUID).
+- **Migrasi idempoten** — dijalankan dua kali berturut pada database yang sama
+  tanpa galat.
+
+Marker sesi `artikel.orphaning` dipakai untuk membedakan `delete_site` dari
+UPDATE biasa. `current_user` tidak bisa: SECURITY DEFINER membuat keduanya
+identik. `set local` otomatis bersih di akhir transaksi, jadi tidak bisa bocor
+antar-request.
 
 Tujuh function terbaca "berbeda" pada perbandingan hash `prosrc`. **Bukan
 perbedaan perilaku**: setelah normalisasi whitespace, seluruh body identik
@@ -270,7 +332,13 @@ union all select '280001_trigger_pakai_actor', (select (prosrc like '%current_ar
 union all select '280002_galleries_nullable', (select (is_nullable='YES')::text from information_schema.columns where table_schema='artikel' and table_name='galleries' and column_name='site_id')
 union all select '280002_fk_set_null', (select (count(*) = 2)::text from pg_constraint where conname in ('galleries_site_id_fkey','media_assets_site_id_fkey') and confdeltype = 'n')
 union all select '280002_delete_site_sisakan_item', (select (prosrc !~* 'delete\s+from\s+artikel\.gallery_items')::text from pg_proc where pronamespace='artikel'::regnamespace and proname='delete_site')
-union all select '280002_media_cabang_yatim', (select (qual like '%is_media_member%')::text from pg_policies where schemaname='artikel' and tablename='media_assets' and policyname='members read site media assets');
+union all select '280002_media_cabang_yatim', (select (qual like '%is_media_member%')::text from pg_policies where schemaname='artikel' and tablename='media_assets' and policyname='members read site media assets')
+union all select '280003_articles_nullable', (select (is_nullable='YES')::text from information_schema.columns where table_schema='artikel' and table_name='articles' and column_name='site_id')
+union all select '280003_fk_artikel_set_null', (select (confdeltype='n')::text from pg_constraint where conname='articles_site_id_fkey')
+union all select '280003_fk_kategori_tag_cascade', (select (count(*) = 2)::text from pg_constraint where conname in ('categories_site_id_fkey','tags_site_id_fkey') and confdeltype='c')
+union all select '280003_is_global_admin', (select (count(*) = 1)::text from pg_proc where pronamespace='artikel'::regnamespace and proname='is_global_admin')
+union all select '280003_kategori_penampung', (select (count(*) = 1)::text from artikel.categories where site_id is null and slug='tanpa-kategori')
+union all select '280003_indeks_slug_yatim', (select (count(*) = 2)::text from pg_indexes where schemaname='artikel' and indexname in ('articles_orphan_slug_key','categories_global_slug_key'));
 SQL
 ```
 
@@ -289,7 +357,7 @@ melaporkan gagal padahal benar.
 1. **Tambah baris ke tabel status di atas setiap kali migrasi baru dibuat**,
    lengkap dengan marker yang membuktikannya — bukan sekadar nama file.
 2. **Jangan pakai ulang nomor yang sudah terpakai.** Nomor tertinggi sekarang
-   `202609280002`.
+   `202609280003`.
 3. **Jangan menamai ulang migrasi yang sudah diterapkan di produksi** kecuali
    dicatat di bagian perubahan penomoran, seperti yang dilakukan 28 September 2026.
 4. Kalau migrasi menyentuh objek yang sudah ada di tabel "saling menimpa",

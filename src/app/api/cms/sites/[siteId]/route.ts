@@ -32,27 +32,18 @@ export async function DELETE(_request: Request, { params }: { params: Promise<{ 
   // Use admin client to bypass RLS
   const adminDb = createAdminClient().schema("artikel");
 
-  // Check dependencies
-  const [articles, categories, tags] = await Promise.all([
-    adminDb.from("articles").select("id", { count: "exact", head: true }).eq("site_id", siteId),
-    adminDb.from("categories").select("id", { count: "exact", head: true }).eq("site_id", siteId),
-    adminDb.from("tags").select("id", { count: "exact", head: true }).eq("site_id", siteId),
-  ]);
-  const dependencyError = articles.error ?? categories.error ?? tags.error;
-  if (dependencyError) return dbErrorResponse(dependencyError, undefined, 500);
-  
-  const dependencies = { articles: articles.count ?? 0, categories: categories.count ?? 0, tags: tags.count ?? 0 };
-  if (Object.values(dependencies).some((count) => count > 0)) {
-    return NextResponse.json({
-      error: `Website belum kosong: ${dependencies.articles} artikel, ${dependencies.categories} kategori, ${dependencies.tags} tag. Nonaktifkan website atau hapus data terkait lebih dulu.`,
-      code: "SITE_NOT_EMPTY",
-      dependencies,
-    }, { status: 409 });
-  }
-  
+  // Penolakan "website belum kosong" dihapus di migrasi 202609280003: artikel
+  // tidak lagi menghalangi penghapusan, ia jadi draf tak bertuan yang hanya
+  // terlihat admin global dan bisa dipungut kembali. Jumlahnya tetap dihitung —
+  // bukan untuk memblokir, tapi supaya pemanggil tahu apa yang baru saja terjadi
+  // pada isinya, dan UI bisa mengatakannya alih-alih "Website dihapus." polos.
+  const { count: orphanedCount, error: countError } = await adminDb
+    .from("articles").select("id", { count: "exact", head: true }).eq("site_id", siteId);
+  if (countError) return dbErrorResponse(countError, undefined, 500);
+
   const { error } = await adminDb.rpc("delete_site", { site_id: siteId, actor_id: user.id });
-  
+
   if (error) return dbErrorResponse(error, undefined, 500);
-  
-  return NextResponse.json({ success: true });
+
+  return NextResponse.json({ success: true, orphanedArticles: orphanedCount ?? 0 });
 }

@@ -109,7 +109,7 @@ describe("DELETE /api/cms/sites/[siteId] — gerbang otorisasi", () => {
     setup({ allowed: true });
     const res = await route(SITE_A);
     expect(res.status).toBe(200);
-    expect(await res.json()).toEqual({ success: true });
+    expect(await res.json()).toEqual({ success: true, orphanedArticles: 0 });
   });
 
   it("mengirim actor_id ke delete_site — DB memverifikasi ulang, bukan percaya aplikasi", async () => {
@@ -123,8 +123,14 @@ describe("DELETE /api/cms/sites/[siteId] — gerbang otorisasi", () => {
   });
 });
 
-describe("DELETE /api/cms/sites/[siteId] — guard site tidak kosong", () => {
-  it("menolak 409 kalau masih ada artikel, dan tidak memanggil delete_site", async () => {
+describe("DELETE /api/cms/sites/[siteId] — artikel diyatimkan, bukan memblokir", () => {
+  // Sampai 202609280003, route ini menolak 409 "SITE_NOT_EMPTY" kalau site
+  // masih punya artikel/kategori/tag. Penolakan itu dicabut: artikel kini jadi
+  // draf tak bertuan (migrasi yang mengerjakannya, bukan route). Yang dikunci
+  // di sini adalah bahwa route TIDAK LAGI memblokir — kalau penolakan lama
+  // hidup kembali, penghapusan site gagal diam-diam untuk semua site berisi.
+
+  it("tetap menghapus meski site masih berisi artikel", async () => {
     setup({ allowed: true });
     adminClient = createMockSupabase({
       tables: {
@@ -135,19 +141,30 @@ describe("DELETE /api/cms/sites/[siteId] — guard site tidak kosong", () => {
       rpc: { delete_site: { data: null, error: null } },
     });
     const res = await route(SITE_A);
-    expect(res.status).toBe(409);
-    const body = await res.json();
-    expect(body.code).toBe("SITE_NOT_EMPTY");
-    expect(body.dependencies.articles).toBe(3);
-    expect(adminClient.db.rpcCalls).toHaveLength(0);
+    expect(res.status).toBe(200);
+    expect(adminClient.db.rpcCalls).toHaveLength(1);
   });
 
-  it("menghitung dependensi hanya untuk site yang diminta", async () => {
+  it("melaporkan berapa artikel yang diyatimkan supaya UI bisa mengatakannya", async () => {
+    // Tanpa angka ini UI hanya bisa bilang "Website dihapus.", dan orang tidak
+    // tahu artikelnya masih ada di suatu tempat.
+    setup({ allowed: true });
+    adminClient = createMockSupabase({
+      tables: {
+        articles: { data: [], count: 3, error: null },
+        categories: emptySite,
+        tags: emptySite,
+      },
+      rpc: { delete_site: { data: null, error: null } },
+    });
+    const body = await (await route(SITE_A)).json();
+    expect(body).toEqual({ success: true, orphanedArticles: 3 });
+  });
+
+  it("menghitung artikel hanya untuk site yang diminta", async () => {
     setup({ allowed: true });
     await route(SITE_A);
-    for (const table of ["articles", "categories", "tags"]) {
-      expect(adminClient.db.callTo(table)?.filters).toContainEqual(["eq", "site_id", SITE_A]);
-    }
+    expect(adminClient.db.callTo("articles")?.filters).toContainEqual(["eq", "site_id", SITE_A]);
   });
 });
 
