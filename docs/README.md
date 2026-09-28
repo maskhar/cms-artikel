@@ -19,6 +19,7 @@ Gunakan dokumen berikut sebagai kontrak aktif:
 | Prioritas | Dokumen | Fungsi |
 |---|---|---|
 | 1 | [`API.md`](API.md) | Kontrak final Automation API dan Public Read API, termasuk image dan add-ons. **Satu-satunya dokumen yang terverifikasi cocok dengan kode.** |
+| 1 | [`API-EXTERNAL.md`](API-EXTERNAL.md) | **Berkas untuk dikirim keluar.** Kontrak mandiri kedua API, ditulis untuk dibaca AI coding agent di repo project konsumen — salin ke sana sebagai `AGENTS.md` atau `API.md`. Tidak memuat rujukan internal, tidak memuat rahasia. |
 | 2 | [`STORAGE-STRUCTURE.md`](STORAGE-STRUCTURE.md) | Aturan path storage untuk artikel, gambar, dan file. |
 | 3 | [`PANDUAN-PENGGUNAAN.md`](PANDUAN-PENGGUNAAN.md) | Panduan CMS untuk admin, editor, writer, dan developer tenant. |
 
