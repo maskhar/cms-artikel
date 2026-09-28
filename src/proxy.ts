@@ -89,4 +89,12 @@ export async function proxy(request: NextRequest) {
   return response;
 }
 
-export const config = { matcher: ["/((?!api|_next/static|_next/image|image|favicon(?:/|\.ico)).*)"] };
+// Setiap pengecualian diakhiri batas segmen (`/` atau akhir string). Tanpa itu,
+// `api` juga cocok sebagai AWALAN kata: /api-keys dan /api-docs ikut lolos dari
+// gerbang auth. /api-keys adalah halaman penerbitan & rotasi API key, jadi
+// halaman itu sebelumnya tidak pernah dijaga proxy sama sekali. (Datanya sendiri
+// tetap aman karena /api/cms/api-keys memeriksa sesi, tapi gerbangnya bolong.)
+// Ditemukan 28 September 2026 lewat test matcher di src/proxy.test.ts.
+export const config = {
+  matcher: ["/((?!api(?:/|$)|_next/static/|_next/image/|image(?:/|$)|favicon(?:/|\.ico$)).*)"],
+};
